@@ -23,7 +23,7 @@
     "lint:fix": "eslint src test --fix",
     "test": "jest --runInBand",
     "verify:consumers": "node scripts/verify-consumers.mjs",
-    "verify:readme": "node scripts/verify-readme.mjs"
+    "verify:docs": "node scripts/verify-docs.mjs"
   },
   "keywords": [
     "opentelemetry",

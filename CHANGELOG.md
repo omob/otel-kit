@@ -8,7 +8,8 @@ Added
 
 Documentation
 
-- A Fastify `requestHook` example used a property that does not exist on the hook argument. Every code sample in the readme is now compiled against the built package in CI, so a sample that would not work cannot be merged.
+- A Fastify `requestHook` example used a property that does not exist on the hook argument. Every code sample in the readme and docs is now compiled against the built package in CI, so a sample that would not work cannot be merged.
+- The readme is now a usage page — install, quick start, spans, metrics and logs — at roughly half its former length, with the option reference, recipes, troubleshooting and concepts moved to `docs/`. npm shows the short page; the depth is a click away.
 - The quick start shows the metrics and logs blocks commented out, so both are visible where you configure everything else rather than only in a later section.
 - A section on enabling metrics and logs, and what each gives you without writing any instrumentation: HTTP latency, event loop and heap metrics, and your existing pino, winston or bunyan output bridged with its trace id.
 - Install instructions say which Google package each route needs. Both were listed together, implying you needed both for traces alone, and the OTLP route needs neither.

@@ -4,13 +4,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const PACKAGE_ROOT = new URL("..", import.meta.url).pathname;
-const readme = readFileSync(join(PACKAGE_ROOT, "README.md"), "utf8");
+import { readdirSync } from "node:fs";
 
-const blocks = [...readme.matchAll(/```ts\n([\s\S]*?)```/g)].map((m, index) => ({
-  index: index + 1,
-  code: m[1],
-  line: readme.slice(0, m.index).split("\n").length,
-}));
+const docs = ["README.md", ...readdirSync(join(PACKAGE_ROOT, "docs")).filter((f) => f.endsWith(".md")).map((f) => `docs/${f}`)];
+
+let counter = 0;
+const blocks = docs.flatMap((file) => {
+  const text = readFileSync(join(PACKAGE_ROOT, file), "utf8");
+
+  return [...text.matchAll(/```ts\n([\s\S]*?)```/g)].map((m) => ({
+    index: ++counter,
+    file,
+    code: m[1],
+    line: text.slice(0, m.index).split("\n").length,
+  }));
+});
 
 // samples name things the reader already has; declaring them keeps the check on our own API
 const AMBIENT = `
@@ -94,7 +102,7 @@ for (const block of blocks) {
 let failures = 0;
 try {
   execFileSync("npx", ["tsc", "--noEmit"], { cwd: workspace, encoding: "utf8", stdio: "pipe" });
-  console.log(`all ${checked.length} README code samples compile`);
+  console.log(`all ${checked.length} code samples across ${docs.length} documents compile`);
 } catch (error) {
   const out = (error.stdout ?? "") + (error.stderr ?? "");
   const diagnostics = out.split("\n").filter((l) => l.includes("error TS"));
@@ -108,7 +116,7 @@ try {
   for (const line of diagnostics) {
     const m = line.match(/sample-(\d+)\.ts\((\d+),/);
     const block = m ? checked.find((b) => b.index === Number(m[1])) : undefined;
-    console.error(`README.md:${block?.line ?? "?"}  ${line.replace(/^src\/sample-\d+\.ts/, "")}`);
+    console.error(`${block?.file ?? "?"}:${block?.line ?? "?"}  ${line.replace(/^src\/sample-\d+\.ts/, "")}`);
     failures++;
   }
 }
