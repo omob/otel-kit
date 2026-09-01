@@ -92,13 +92,13 @@ That's it. HTTP, database and framework calls are traced automatically.
 
 Keep the ratio at 1 while you are setting things up. Sampling below 1 is a production concern, and turning it down before you have seen a single trace is the most common reason nothing appears in a backend. Dial it down later with the env var.
 
-**On Fastify, turn its instrumentation on** — the upstream package ships it disabled, along with `fs`:
+**On Fastify, turn its instrumentation on.** It ships disabled, along with `fs`, and there is a wrinkle worth reading below:
 
 ```ts
 instrumentation: { enable: [InstrumentationName.FASTIFY], ignoreIncomingPaths: ["/health"] }
 ```
 
-Without it, every request is one bare `GET` span with no `http.route`, so nothing groups by route. Express, Koa, Hapi, NestJS, Mongo, Postgres, Redis, Kafka and outbound HTTP need no such step — they are on by default.
+Without it, every request is one bare `GET` span with no `http.route`, so nothing groups by route. Express, Koa, Hapi, NestJS, Mongo, Postgres, Redis, Kafka and outbound HTTP need no such step — they are on by default. The wrinkle: the bundled Fastify instrumentation is deprecated upstream, which is *why* it is disabled. It works, and the alternative is covered under [Recipes](#recipes).
 
 ### Why `--require`
 
@@ -189,7 +189,7 @@ Telemetry.start({
 
 To disable everything at once, set `enabled: false`. `Telemetry.start` becomes a no-op, no SDK is loaded. Use it for tests.
 
-## When configuration is wrong
+## When configuration is rejected
 
 A telemetry mistake should not stop your service from serving traffic. If the configuration is rejected, `Telemetry.start` does **not** throw: it logs, leaves telemetry off, and lets your app boot. Pass `onStartupError` to route that into your own logger or alerting:
 
@@ -201,41 +201,65 @@ Pass a handler that rethrows if you would rather fail the boot.
 
 ## Options
 
+Only `serviceName` is required. Everything else has a working default.
+
+**The service**
+
 | Option | Default | What it does |
 | --- | --- | --- |
 | `serviceName` | **required** | Name your service appears under. |
 | `serviceVersion` | — | Shows on every span as `service.version`. |
 | `environment` | — | Shows as `deployment.environment.name`. |
-| `enabled` | `true` | `false` turns everything off. |
+| `enabled` | `true` | `false` turns everything off and loads no SDK. |
 | `resourceAttributes` | `{}` | Extra attributes on every span, metric and log. |
-| `resourceDetection` | `true` | Auto-detects host and process attributes. Note this stamps `process.command_args` — your argv — on everything; set `false` if you pass secrets as flags. |
-| `spanLimits.attributeValueLengthLimit` | `4096` | Caps attribute size so one oversized request can't produce an unbounded span. |
+| `resourceDetection` | `true` | Auto-detects host and process attributes. Stamps `process.command_args` — your argv — on everything, so set `false` if you pass secrets as flags. |
+
+**Traces**
+
+| Option | Default | What it does |
+| --- | --- | --- |
 | `traces.exporter` | `none` | `none` · `console` · `otlp` · `gcp` |
 | `traces.sampleRatio` | keep all | `0.1` keeps 10%. Children follow their parent's decision. |
+| `traces.sampler` | — | A sampler of your own. Takes precedence over `sampleRatio`. |
 | `traces.otlp.url` | — | Collector endpoint. Also takes `headers` and `timeoutMillis`. |
-| `traces.batch` | SDK defaults | `maxQueueSize`, `maxExportBatchSize`, `scheduledDelayMillis`, `exportTimeoutMillis`. Raise the queue if you drop spans under load. |
+| `traces.otlp.protocol` | `http/protobuf` | `http/protobuf` · `http/json` · `grpc` |
 | `traces.gcp.projectId` | `$GCP_PROJECT_ID` | Also takes `keyFile`; falls back to application default credentials. |
+| `traces.batch` | SDK defaults | `maxQueueSize`, `maxExportBatchSize`, `scheduledDelayMillis`, `exportTimeoutMillis`. Raise the queue if you drop spans under load. |
+| `traces.additionalProcessors` | `[]` | Extra span processors — scrub attributes, enrich spans, or dual-write to a second collector. |
+| `traces.sanitizeAttributes` | `true` | Drops `NaN` and `Infinity` attribute values, which some backends cannot represent. |
+| `spanLimits.attributeValueLengthLimit` | `4096` | Caps attribute size so one oversized request can't produce an unbounded span. |
+
+**Metrics and logs**
+
+| Option | Default | What it does |
+| --- | --- | --- |
 | `metrics.exporter` | `none` | `none` · `console` · `otlp` · `gcp` · `prometheus` |
 | `metrics.exportIntervalMillis` | `60000` | How often metrics are pushed. Prometheus ignores it — it's pull-based. |
 | `metrics.prometheus` | `127.0.0.1:9464` | `host`, `port`, `endpoint`. Binds loopback by default — the endpoint is unauthenticated, so only widen it behind a private network. |
-| `logs.exporter` | `none` | `none` · `console` · `otlp` |
-| `instrumentation.disable` | `[]` | Instrumentations to switch off, e.g. `[InstrumentationName.DNS]`. |
-| `instrumentation.enable` | `[]` | Switch on one that's off by default, e.g. `FS`. Beats `disable`. |
-| `instrumentation.ignoreIncomingPaths` | `[]` | No spans for these paths. Put your health check here. |
-| `instrumentation.additional` | `[]` | Your own instrumentations. |
-| `instrumentation.config` | `{}` | Options for individual instrumentations, passed straight through. See below. |
-| `propagators` | `tracecontext`, `baggage` | Trace context formats to read and write. |
-| `traces.sampler` | — | A sampler of your own. Takes precedence over `sampleRatio`. |
-| `traces.additionalProcessors` | `[]` | Extra span processors — scrub attributes, enrich spans, or dual-write to a second collector. |
-| `traces.sanitizeAttributes` | `true` | Drops `NaN` and `Infinity` attribute values before export. |
-| `traces.otlp.protocol` | `http/protobuf` | `http/protobuf` · `http/json` · `grpc`. |
 | `metrics.views` | `[]` | Histogram buckets and cardinality limits. |
-| `diagLogLevel` | off | Turns on OpenTelemetry's own internal logging. See below. |
-| `diagLogger` | console | Where that internal logging goes. |
+| `logs.exporter` | `none` | `none` · `console` · `otlp` |
+
+**Instrumentation and propagation**
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `instrumentation.disable` | `[]` | Instrumentations to switch off, e.g. `[InstrumentationName.DNS]`. |
+| `instrumentation.enable` | `[]` | Switch on one that's off by default. Beats `disable`. |
+| `instrumentation.ignoreIncomingPaths` | `[]` | No spans for these paths. Put your health check here. |
+| `instrumentation.config` | `{}` | Options for individual instrumentations, passed to OpenTelemetry unchanged. |
+| `instrumentation.additional` | `[]` | Instrumentations outside the auto set — community ones, or your own. |
+| `propagators` | `tracecontext`, `baggage` | Trace context formats to read and write. |
+
+**Lifecycle and diagnostics**
+
+| Option | Default | What it does |
+| --- | --- | --- |
 | `handleShutdownSignals` | `true` | Flush on SIGTERM/SIGINT, then hand the signal back. |
 | `exitOnSignal` | `false` | Call `process.exit(0)` after flushing instead of handing the signal back. |
-| `onStartupError` | logs and continues | Called instead of throwing when the configuration is rejected. |
 | `shutdownTimeoutMillis` | `5000` | Give up if the flush hangs, so shutdown can't stall. |
+| `onStartupError` | logs and continues | Called instead of throwing when the configuration is rejected. |
+| `diagLogLevel` | off | Turns on OpenTelemetry's own internal logging. |
+| `diagLogger` | console | Where that internal logging goes. |
 
 ## Recipes
 
@@ -333,9 +357,9 @@ Spans print on shutdown, since they're batched.
 instrumentation: { disable: [InstrumentationName.DNS, InstrumentationName.NET] }
 ```
 
-## When something's wrong
+## Troubleshooting
 
-Configuration mistakes throw `TelemetryConfigError` at startup rather than failing quietly later:
+A rejected configuration produces a `TelemetryConfigError`. It is **reported, not thrown** — telemetry switches itself off and your service still boots. `onStartupError` decides where that goes; by default it is logged.
 
 | Error code | Cause |
 | --- | --- |
