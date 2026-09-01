@@ -51,14 +51,19 @@ Traces answer "what happened in this one request". **Metrics** are numbers over 
 npm install @omob/otel-kit @opentelemetry/api
 ```
 
-OTLP and Prometheus exporters are included. Google Cloud is the only one you install separately:
+That is everything for most setups. OTLP — protobuf, JSON and gRPC — and Prometheus are already included.
 
-```bash
-npm install @google-cloud/opentelemetry-cloud-trace-exporter \
-            @google-cloud/opentelemetry-cloud-monitoring-exporter
-```
+Extra packages are needed for Google Cloud only, and which one depends on the route you take:
 
-If you pick an exporter you haven't installed, startup fails and tells you which package to install.
+| If you use | Install |
+| --- | --- |
+| `ExporterType.GCP` for **traces** | `@google-cloud/opentelemetry-cloud-trace-exporter` |
+| `ExporterType.GCP` for **metrics** | `@google-cloud/opentelemetry-cloud-monitoring-exporter` |
+| Google Cloud over **OTLP** | `google-auth-library` — and neither of the above |
+
+They are independent: exporting traces to Google needs the trace package only. Google is deprecating both in favour of the OTLP route, which is covered under [Recipes](#recipes).
+
+If you pick an exporter whose package is not installed, startup fails and names the package.
 
 ## Quick start
 
