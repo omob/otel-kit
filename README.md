@@ -82,6 +82,13 @@ Telemetry.start({
     exporter: ExporterType.CONSOLE,
     sampleRatio: Number(process.env.OTEL_TRACES_SAMPLE_RATIO ?? 1),
   },
+
+  // metrics and logs stay off until you add their block. Uncomment to turn them on —
+  // you get HTTP latency, event loop and heap metrics, and your existing pino or winston
+  // output bridged with its trace id, without writing any instrumentation yourself.
+  // metrics: { exporter: ExporterType.OTLP, otlp: { url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT } },
+  // logs: { exporter: ExporterType.OTLP, otlp: { url: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT } },
+
   instrumentation: { ignoreIncomingPaths: ["/health"] },
 });
 ```

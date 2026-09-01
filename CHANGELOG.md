@@ -9,6 +9,7 @@ Added
 Documentation
 
 - A Fastify `requestHook` example used a property that does not exist on the hook argument. Every code sample in the readme is now compiled against the built package in CI, so a sample that would not work cannot be merged.
+- The quick start shows the metrics and logs blocks commented out, so both are visible where you configure everything else rather than only in a later section.
 - A section on enabling metrics and logs, and what each gives you without writing any instrumentation: HTTP latency, event loop and heap metrics, and your existing pino, winston or bunyan output bridged with its trace id.
 - Install instructions say which Google package each route needs. Both were listed together, implying you needed both for traces alone, and the OTLP route needs neither.
 - The quick start starts on the console exporter, which needs nothing running. It pointed at `http://localhost:4318` before, where most people have nothing listening — and a refused export is silent, so the first experience of the package was an empty backend.
