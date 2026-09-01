@@ -96,7 +96,7 @@ Telemetry.start({
     exporter: ExporterType.OTLP,
     otlp: {
       url: "https://telemetry.googleapis.com/v1/traces",
-      headers: async () => Object.fromEntries((await client.getRequestHeaders()).entries()),
+      headers: async () => ({ authorization: `Bearer ${(await client.getAccessToken()).token}` }),
     },
   },
 });
