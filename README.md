@@ -74,13 +74,30 @@ Telemetry.start({
   environment: process.env.NODE_ENV,
   enabled: process.env.NODE_ENV !== "test",
   traces: {
-    exporter: ExporterType.OTLP,
-    otlp: { url: "http://localhost:4318/v1/traces" },
+    exporter: ExporterType.CONSOLE,
     sampleRatio: Number(process.env.OTEL_TRACES_SAMPLE_RATIO ?? 1),
   },
   instrumentation: { ignoreIncomingPaths: ["/health"] },
 });
 ```
+
+`CONSOLE` needs no infrastructure — spans print to stdout, so you can confirm tracing works before you have anywhere to send it. Swap it for a real destination once you do:
+
+```ts
+traces: {
+  exporter: ExporterType.OTLP,
+  otlp: { url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT },
+  sampleRatio: Number(process.env.OTEL_TRACES_SAMPLE_RATIO ?? 1),
+}
+```
+
+**Nothing listens on port 4318 unless you run something there.** If you point at a collector that is not up, every export fails with `ECONNREFUSED` and you see no error at all — OpenTelemetry's internal logging is off by default. The quickest real destination is Jaeger, which ingests OTLP directly:
+
+```bash
+docker run -d --name jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:1.62.0
+```
+
+Then set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/traces` and open the UI at http://localhost:16686.
 
 Load it before your app:
 
@@ -368,14 +385,6 @@ Telemetry.start({
 Three things differ from a normal collector. The endpoint is `https://telemetry.googleapis.com` — for HTTP the exporter needs the full signal path, so `/v1/traces`. The project is a **resource attribute**, `gcp.project_id`, not part of the URL. And `headers` must be a **function**: Google's OAuth2 tokens expire after an hour, so a static header stops working mid-run. `headers` accepts either a plain object or an async factory for exactly this.
 
 This route needs `google-auth-library` in your project, but no Google exporter package.
-
-**Seeing spans locally** — no collector needed:
-
-```ts
-traces: { exporter: ExporterType.CONSOLE, sampleRatio: 1 }
-```
-
-Spans print on shutdown, since they're batched.
 
 **Quieter traces** — the noisiest instrumentations are usually DNS and net, especially with a database driver reconnecting:
 
