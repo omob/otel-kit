@@ -81,7 +81,7 @@ describe("withSpan", () => {
   it("defaults the instrumentation scope to the package name", async () => {
     await withSpan("unscoped", async () => undefined);
 
-    expect(spanNamed("unscoped").instrumentationScope.name).toBe("otel-kit");
+    expect(spanNamed("unscoped").instrumentationScope.name).toBe("@omob/otel-kit");
   });
 });
 

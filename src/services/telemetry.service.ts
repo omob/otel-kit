@@ -52,7 +52,7 @@ class TelemetryService {
     for (const signal of SHUTDOWN_SIGNALS) {
       process.once(signal, () => {
         this.shutdown(timeoutMillis)
-          .catch((error) => console.error("otel-kit failed to flush telemetry on shutdown", error))
+          .catch((error) => console.error("@omob/otel-kit failed to flush telemetry on shutdown", error))
           .finally(() => process.exit(0));
       });
     }

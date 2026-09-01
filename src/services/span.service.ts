@@ -1,7 +1,7 @@
 import { context, Span, SpanStatusCode, trace, Tracer } from "@opentelemetry/api";
 import { IWithSpanOptions } from "../telemetry.types";
 
-const DEFAULT_TRACER_NAME = "otel-kit";
+const DEFAULT_TRACER_NAME = "@omob/otel-kit";
 
 type SpanHandler<T> = (span: Span) => Promise<T> | T;
 

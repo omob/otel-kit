@@ -1,4 +1,4 @@
-# otel-kit
+# @omob/otel-kit
 
 OpenTelemetry setup for Node services, in one function call.
 
@@ -32,7 +32,7 @@ Traces answer "what happened in this one request". **Metrics** are numbers over 
 ## Install
 
 ```bash
-npm install otel-kit @opentelemetry/api
+npm install @omob/otel-kit @opentelemetry/api
 ```
 
 OTLP exporters are included. Install these only if you use them:
@@ -51,7 +51,7 @@ Create `src/instrumentation.ts`:
 
 ```ts
 import "dotenv/config";
-import { ExporterType, Telemetry } from "otel-kit";
+import { ExporterType, Telemetry } from "@omob/otel-kit";
 
 Telemetry.start({
   serviceName: "my-service",
@@ -88,7 +88,7 @@ Importing it at the top of your entry file also works, as long as nothing you wa
 Add one when you want a step to show up as its own line in the trace: a slow query, an external API call, a step you suspect. Skip it for cheap in-memory work — a span costs more than the code it measures.
 
 ```ts
-import { withSpan } from "otel-kit";
+import { withSpan } from "@omob/otel-kit";
 
 async function login({ email, password }) {
   return withSpan("login", { attributes: { "auth.method": "password" } }, async (span) => {
@@ -107,7 +107,7 @@ Never put emails, tokens or passwords in attributes — spans are stored unredac
 Two more helpers:
 
 ```ts
-import { currentTraceId, getTracer } from "otel-kit";
+import { currentTraceId, getTracer } from "@omob/otel-kit";
 
 currentTraceId();            // trace id of the active span, or undefined
 getTracer("auth-module");    // pass as `tracer` in withSpan options to name the scope
