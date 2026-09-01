@@ -335,13 +335,15 @@ metrics: { exporter: ExporterType.PROMETHEUS, prometheus: { port: 9464 } }
 
 Then scrape `http://your-service:9464/metrics`.
 
-**Google Cloud**:
+**Google Cloud** — works, and is on a clock:
 
 ```ts
 traces: { exporter: ExporterType.GCP, gcp: { projectId: "my-project" } }
 ```
 
-Uses `GOOGLE_APPLICATION_CREDENTIALS` if it points at a readable file, otherwise application default credentials.
+Uses `GOOGLE_APPLICATION_CREDENTIALS` if it points at a readable file, otherwise application default credentials. Give the service account the **Cloud Trace Agent** role; it only needs to write.
+
+Google has **deprecated** `@google-cloud/opentelemetry-cloud-trace-exporter` and will archive it after **30 October 2026**, directing users to OTLP instead ([migration guide](https://github.com/GoogleCloudPlatform/opentelemetry-operations-js/blob/main/MIGRATION.md)). `ExporterType.GCP` keeps working until then; new services are better off pointing `ExporterType.OTLP` at Google's OTLP endpoint, which needs no extra package.
 
 **Seeing spans locally** — no collector needed:
 
