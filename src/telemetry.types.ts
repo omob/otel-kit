@@ -10,6 +10,8 @@ import { PropagatorType } from "./enums/propagator-type.enum";
 
 export type ResourceAttributeValue = string | number | boolean;
 
+export type OtlpHeaders = Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
+
 export type SpanHandler<T> = (span: import("@opentelemetry/api").Span) => Promise<T> | T;
 
 export interface IGcpTraceModule {
@@ -27,7 +29,7 @@ export interface IPrometheusModule {
 export interface IOtlpOptions {
   protocol?: OtlpProtocol;
   url?: string;
-  headers?: Record<string, string>;
+  headers?: OtlpHeaders;
   timeoutMillis?: number;
 }
 

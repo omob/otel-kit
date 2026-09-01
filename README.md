@@ -343,7 +343,31 @@ traces: { exporter: ExporterType.GCP, gcp: { projectId: "my-project" } }
 
 Uses `GOOGLE_APPLICATION_CREDENTIALS` if it points at a readable file, otherwise application default credentials. Give the service account the **Cloud Trace Agent** role; it only needs to write.
 
-Google has **deprecated** `@google-cloud/opentelemetry-cloud-trace-exporter` and will archive it after **30 October 2026**, directing users to OTLP instead ([migration guide](https://github.com/GoogleCloudPlatform/opentelemetry-operations-js/blob/main/MIGRATION.md)). `ExporterType.GCP` keeps working until then; new services are better off pointing `ExporterType.OTLP` at Google's OTLP endpoint, which needs no extra package.
+Google has **deprecated** `@google-cloud/opentelemetry-cloud-trace-exporter` and will archive it after **30 October 2026**, directing users to OTLP instead ([migration guide](https://github.com/GoogleCloudPlatform/opentelemetry-operations-js/blob/main/MIGRATION.md)).
+
+**Google Cloud over OTLP** — the destination Google is moving everyone to:
+
+```ts
+import { GoogleAuth } from "google-auth-library";
+
+const client = await new GoogleAuth({ scopes: "https://www.googleapis.com/auth/cloud-platform" }).getClient();
+
+Telemetry.start({
+  serviceName: "my-service",
+  resourceAttributes: { "gcp.project_id": "my-project" },
+  traces: {
+    exporter: ExporterType.OTLP,
+    otlp: {
+      url: "https://telemetry.googleapis.com/v1/traces",
+      headers: async () => Object.fromEntries((await client.getRequestHeaders()).entries()),
+    },
+  },
+});
+```
+
+Three things differ from a normal collector. The endpoint is `https://telemetry.googleapis.com` — for HTTP the exporter needs the full signal path, so `/v1/traces`. The project is a **resource attribute**, `gcp.project_id`, not part of the URL. And `headers` must be a **function**: Google's OAuth2 tokens expire after an hour, so a static header stops working mid-run. `headers` accepts either a plain object or an async factory for exactly this.
+
+This route needs `google-auth-library` in your project, but no Google exporter package.
 
 **Seeing spans locally** — no collector needed:
 

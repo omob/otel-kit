@@ -34,6 +34,18 @@ describe("OtlpExporterFactory", () => {
     }
   );
 
+  it("accepts a dynamic headers factory, which token-refreshing backends require", async () => {
+    const headers = async () => ({ authorization: "Bearer refreshed-token" });
+
+    const exporter = OtlpExporterFactory.createExporter<object>(TelemetrySignal.TRACES, {
+      url: "https://telemetry.googleapis.com/v1/traces",
+      headers,
+    });
+
+    expect(exporter).toBeDefined();
+    await expect(headers()).resolves.toEqual({ authorization: "Bearer refreshed-token" });
+  });
+
   it("rejects an unknown protocol", () => {
     expect(() =>
       OtlpExporterFactory.createExporter<object>(TelemetrySignal.TRACES, { protocol: "carrier-pigeon" as OtlpProtocol })
