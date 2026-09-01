@@ -1,4 +1,5 @@
 import type { DiagLogLevel, DiagLogger, SpanOptions, Tracer } from "@opentelemetry/api";
+import type { InstrumentationConfigMap } from "@opentelemetry/auto-instrumentations-node";
 import type { Instrumentation } from "@opentelemetry/instrumentation";
 import type { MetricReader, PushMetricExporter, ViewOptions } from "@opentelemetry/sdk-metrics";
 import type { Sampler, SpanExporter, SpanProcessor } from "@opentelemetry/sdk-trace-node";
@@ -85,6 +86,7 @@ export interface IInstrumentationConfig {
   enable?: InstrumentationName[];
   ignoreIncomingPaths?: string[];
   additional?: Instrumentation[];
+  config?: InstrumentationConfigMap;
 }
 
 export interface ITelemetryConfig {

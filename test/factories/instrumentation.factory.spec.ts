@@ -63,6 +63,46 @@ describe("InstrumentationFactory", () => {
     expect(hook({ url } as IncomingMessage)).toBe(false);
   });
 
+  it("passes upstream instrumentation options straight through", () => {
+    const requestHook = jest.fn();
+    const [mongodb, http] = [InstrumentationName.MONGODB, InstrumentationName.HTTP];
+
+    const instrumentations = InstrumentationFactory.createInstrumentations({
+      config: { [mongodb]: { enhancedDatabaseReporting: true }, [http]: { requestHook } },
+    });
+
+    const configOf = (name: string) =>
+      instrumentations.find((i) => i.instrumentationName === name)?.getConfig() as Record<string, unknown>;
+
+    expect(configOf(mongodb).enhancedDatabaseReporting).toBe(true);
+    expect(configOf(http).requestHook).toBe(requestHook);
+  });
+
+  it("merges ignored paths into upstream http options rather than replacing them", () => {
+    const requestHook = jest.fn();
+
+    const http = InstrumentationFactory.createInstrumentations({
+      config: { [InstrumentationName.HTTP]: { requestHook } },
+      ignoreIncomingPaths: ["/health"],
+    }).find((i) => i.instrumentationName === InstrumentationName.HTTP);
+
+    const config = http?.getConfig() as Record<string, unknown>;
+
+    expect(config.requestHook).toBe(requestHook);
+    expect(typeof config.ignoreIncomingRequestHook).toBe("function");
+  });
+
+  it("lets disable win over an upstream option that enables the same instrumentation", () => {
+    const names = namesOf(
+      InstrumentationFactory.createInstrumentations({
+        config: { [InstrumentationName.DNS]: { enabled: true } },
+        disable: [InstrumentationName.DNS],
+      })
+    );
+
+    expect(names).not.toContain(InstrumentationName.DNS);
+  });
+
   it("keeps the http instrumentation disabled when it is both disabled and given ignored paths", () => {
     const names = namesOf(
       InstrumentationFactory.createInstrumentations({

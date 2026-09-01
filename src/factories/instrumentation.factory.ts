@@ -6,14 +6,14 @@ import { IInstrumentationConfig } from "../telemetry.types";
 
 class InstrumentationFactory {
   static createInstrumentations(config: IInstrumentationConfig = {}): Instrumentation[] {
-    const options: Record<string, unknown> = {};
+    const options: Record<string, unknown> = { ...config.config };
 
     for (const name of config.disable ?? []) {
-      options[name] = { enabled: false };
+      options[name] = { ...(options[name] as object), enabled: false };
     }
 
     for (const name of config.enable ?? []) {
-      options[name] = { enabled: true };
+      options[name] = { ...(options[name] as object), enabled: true };
     }
 
     if (config.ignoreIncomingPaths?.length) {
