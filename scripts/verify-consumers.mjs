@@ -116,7 +116,12 @@ const checks = {
   },
   pnpm: (dir, pack) => {
     writeFileSync(join(dir, "index.js"), APP.replace("MODULE", 'require("@omob/otel-kit")'));
-    run("pnpm", ["add", "--store-dir", join(workspace, "pnpm-store"), pack, "@opentelemetry/api"], dir);
+    // pnpm 10 fails an install whose dependencies have unrun build scripts; none of them matter to this check
+    run(
+      "pnpm",
+      ["add", "--config.strict-dep-builds=false", "--store-dir", join(workspace, "pnpm-store"), pack, "@opentelemetry/api"],
+      dir
+    );
 
     return run("node", ["index.js"], dir);
   },
