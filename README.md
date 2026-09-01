@@ -174,6 +174,42 @@ fastify.setErrorHandler((err, request, reply) =>
 );
 ```
 
+## Metrics and logs
+
+Both are off until you add their block. Neither needs code beyond the config.
+
+**Metrics** — add a `metrics` block:
+
+```ts
+metrics: {
+  exporter: ExporterType.OTLP,
+  otlp: { url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT },
+  exportIntervalMillis: 60_000,
+}
+```
+
+You immediately get, with no instrumentation of your own:
+
+- `http.server.duration` and `http.client.duration` — request latency in and out, by route and status
+- `nodejs.eventloop.delay.p50` / `p90` / `p99`, `nodejs.eventloop.utilization` — the event loop, which is what saturates first on a busy Node service
+- `v8js.memory.heap.*` — heap usage and limit
+
+For a pull-based setup, swap the exporter and Prometheus scrapes you instead:
+
+```ts
+metrics: { exporter: ExporterType.PROMETHEUS, prometheus: { port: 9464 } }
+```
+
+**Logs** — add a `logs` block:
+
+```ts
+logs: { exporter: ExporterType.OTLP, otlp: { url: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT } }
+```
+
+You do not change how you log. If you use pino, winston or bunyan, the log instrumentation bridges what you already write into OpenTelemetry, carrying the `trace_id` that ties each line to its span — so a trace links straight to the logs from that request.
+
+Two things to weigh before turning logs on. Your log volume goes to two places, so you pay to store it twice unless you drop stdout collection. And any gap in your redaction now reaches a second system: check what your logger emits — response bodies and auth headers are the usual leaks — before pointing it at a backend.
+
 ## Shutting down
 
 Spans sit in a batch buffer for up to five seconds, so a process that exits without flushing loses them — on every deploy, which is exactly when you want them.
@@ -199,7 +235,7 @@ Do not leave `handleShutdownSignals` on *and* call `Telemetry.shutdown()` from y
 
 ## Turning things off
 
-Every signal is optional and off by default. Omit what you don't want:
+Every signal is optional and off by default — see [Metrics and logs](#metrics-and-logs) for turning the other two on. Omit what you don't want:
 
 ```ts
 Telemetry.start({
