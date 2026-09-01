@@ -210,6 +210,7 @@ Pass a handler that rethrows if you would rather fail the boot.
 | `propagators` | `tracecontext`, `baggage` | Trace context formats to read and write. |
 | `traces.sampler` | — | A sampler of your own. Takes precedence over `sampleRatio`. |
 | `traces.additionalProcessors` | `[]` | Extra span processors — scrub attributes, enrich spans, or dual-write to a second collector. |
+| `traces.sanitizeAttributes` | `true` | Drops `NaN` and `Infinity` attribute values before export. |
 | `traces.otlp.protocol` | `http/protobuf` | `http/protobuf` · `http/json` · `grpc`. |
 | `metrics.views` | `[]` | Histogram buckets and cardinality limits. |
 | `diagLogLevel` | off | Turns on OpenTelemetry's own internal logging. See below. |
@@ -312,6 +313,8 @@ Telemetry.start({ ..., diagLogLevel: DiagLogLevel.ERROR });
 ```
 
 Pass `diagLogger` to send it to your own logger instead of the console. With that on, most causes announce themselves. Without it, check in order: is `enabled` true; is `traces.exporter` something other than `none`; is the path in `ignoreIncomingPaths`; is `sampleRatio` dropping them; is the collector URL reachable from inside the container.
+
+**Jaeger returns a 500 with `json: unsupported value: NaN`?** A span carried a `NaN` numeric attribute, and Go's JSON encoder cannot represent one — so Jaeger fails the whole trace, not just that attribute. Some instrumentations produce it by parsing a port or a header that was not there. The package drops non-finite attribute values before export, so this should not reach you; if you have set `sanitizeAttributes: false`, that is why.
 
 **Everything arrives under the wrong service name?** `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` are read by the SDK's own resource detectors, and detected attributes win over the ones you pass in code. A service mesh or a shared Helm chart injecting either will silently rename your service. Set `resourceDetection: false` to stop that.
 

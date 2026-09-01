@@ -5,6 +5,7 @@ import { ILogConfig, IMetricConfig, ITelemetryConfig, ITraceConfig } from "../te
 import InstrumentationFactory from "./instrumentation.factory";
 import LogProcessorFactory from "./log-processor.factory";
 import MetricReaderFactory from "./metric-reader.factory";
+import AttributeSanitizerProcessor from "../processors/attribute-sanitizer.processor";
 import PropagatorFactory from "./propagator.factory";
 import ResourceFactory from "./resource.factory";
 import SamplerFactory from "./sampler.factory";
@@ -20,6 +21,7 @@ class SdkFactory {
     const traceExporter = TraceExporterFactory.createExporter(traces);
     const metricReader = MetricReaderFactory.createReader(metrics);
     const spanProcessors: SpanProcessor[] = [
+      ...(traces.sanitizeAttributes === false ? [] : [new AttributeSanitizerProcessor()]),
       ...(traceExporter ? [new BatchSpanProcessor(traceExporter, traces.batch)] : []),
       ...(traces.additionalProcessors ?? []),
     ];

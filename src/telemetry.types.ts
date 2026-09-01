@@ -60,6 +60,7 @@ export interface ITraceConfig {
   sampleRatio?: number;
   sampler?: Sampler;
   additionalProcessors?: SpanProcessor[];
+  sanitizeAttributes?: boolean;
   batch?: IBatchOptions;
   otlp?: IOtlpOptions;
   gcp?: IGcpOptions;
