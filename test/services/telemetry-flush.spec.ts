@@ -32,6 +32,41 @@ describe("Telemetry.shutdown", () => {
     await expect(Telemetry.shutdown()).rejects.toThrow("collector unreachable");
   });
 
+  it("makes concurrent callers wait for the same flush", async () => {
+    let settle: () => void = () => undefined;
+    mockShutdown.mockReturnValue(new Promise<void>((resolve) => (settle = resolve)));
+    start();
+
+    let firstDone = false;
+    let secondDone = false;
+    const first = Telemetry.shutdown().then(() => (firstDone = true));
+    const second = Telemetry.shutdown().then(() => (secondDone = true));
+
+    await Promise.resolve();
+
+    expect(firstDone).toBe(false);
+    expect(secondDone).toBe(false);
+
+    settle();
+    await Promise.all([first, second]);
+
+    expect(mockShutdown).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the sdk so a failed flush can be retried", async () => {
+    mockShutdown.mockRejectedValue(new Error("collector unreachable"));
+    start();
+
+    await expect(Telemetry.shutdown()).rejects.toThrow("collector unreachable");
+
+    expect(Telemetry.isStarted).toBe(true);
+
+    mockShutdown.mockResolvedValue(undefined);
+    await Telemetry.shutdown();
+
+    expect(Telemetry.isStarted).toBe(false);
+  });
+
   it("flushes only once across repeated calls", async () => {
     mockShutdown.mockResolvedValue(undefined);
     start();

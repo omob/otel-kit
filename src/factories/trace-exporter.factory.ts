@@ -3,14 +3,12 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { ExporterType } from "../enums/exporter-type.enum";
 import { TelemetryErrorCode } from "../enums/telemetry-error-code.enum";
 import TelemetryConfigError from "../errors/telemetry-config.error";
-import { ITraceConfig } from "../telemetry.types";
+import { IGcpTraceModule, ITraceConfig } from "../telemetry.types";
 import { loadOptionalDependency } from "../utils/optional-dependency";
 import { toGcpExporterOptions } from "../utils/gcp-credentials";
 import { toOtlpExporterOptions } from "../utils/otlp-options";
 
 const GCP_TRACE_MODULE = "@google-cloud/opentelemetry-cloud-trace-exporter";
-
-type GcpTraceModule = { TraceExporter: new (options: object) => SpanExporter };
 
 class TraceExporterFactory {
   static createExporter(config: ITraceConfig): SpanExporter | undefined {
@@ -32,7 +30,7 @@ class TraceExporterFactory {
   }
 
   private static createGcpExporter(config: ITraceConfig): SpanExporter {
-    const { TraceExporter } = loadOptionalDependency<GcpTraceModule>(GCP_TRACE_MODULE);
+    const { TraceExporter } = loadOptionalDependency<IGcpTraceModule>(GCP_TRACE_MODULE);
 
     return new TraceExporter(toGcpExporterOptions(config.gcp));
   }

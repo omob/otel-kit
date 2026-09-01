@@ -39,11 +39,25 @@ describe("Telemetry.start", () => {
     expect(Telemetry.isStarted).toBe(false);
   });
 
-  it("rejects a configuration without a service name", () => {
-    expect(() => Telemetry.start({ ...silentConfig, serviceName: "" })).toThrow(
+  it("disables itself rather than letting a bad configuration stop the host from booting", () => {
+    const onStartupError = jest.fn();
+
+    expect(() => Telemetry.start({ ...silentConfig, serviceName: "", onStartupError })).not.toThrow();
+
+    expect(onStartupError).toHaveBeenCalledWith(
       expect.objectContaining({ errorCode: TelemetryErrorCode.MISSING_SERVICE_NAME })
     );
     expect(Telemetry.isStarted).toBe(false);
+  });
+
+  it("stays retryable after a rejected configuration", () => {
+    Telemetry.start({ ...silentConfig, traces: { exporter: "nope" as ExporterType }, onStartupError: jest.fn() });
+
+    expect(Telemetry.isStarted).toBe(false);
+
+    Telemetry.start(silentConfig);
+
+    expect(Telemetry.isStarted).toBe(true);
   });
 
   it("starts the sdk once and ignores repeat calls", () => {
@@ -64,6 +78,17 @@ describe("Telemetry.start", () => {
     const added = startAndCaptureSignalListeners(silentConfig);
 
     SIGNALS.forEach((signal) => expect(added.get(signal)).toHaveLength(0));
+  });
+});
+
+describe("Telemetry shutdown handlers", () => {
+  it("removes its signal listeners on shutdown so restarts do not leak them", async () => {
+    const before = SIGNALS.map((signal) => process.listenerCount(signal));
+
+    Telemetry.start({ ...silentConfig, handleShutdownSignals: undefined });
+    await Telemetry.shutdown();
+
+    SIGNALS.forEach((signal, index) => expect(process.listenerCount(signal)).toBe(before[index]));
   });
 });
 

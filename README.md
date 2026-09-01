@@ -100,7 +100,13 @@ async function login({ email, password }) {
 }
 ```
 
-Throw anywhere inside and the span is marked failed, the exception is recorded, and the error still propagates to your caller. Spans always end, on success or failure.
+Throw anywhere inside and the span is marked failed, the exception is recorded, and the error still propagates to your caller unchanged. Spans always end, on success or failure.
+
+Not every failure is a fault. A wrong password is an expected outcome, and marking it as a span error means your error rate tracks how often users mistype. Pass `isError` to say which throws actually count:
+
+```ts
+withSpan("login", { isError: (e) => !(e instanceof AppError) || e.statusCode >= 500 }, handler);
+```
 
 Never put emails, tokens or passwords in attributes — spans are stored unredacted.
 
@@ -123,19 +129,26 @@ fastify.setErrorHandler((err, request, reply) =>
 
 ## Shutting down
 
-By default the package listens for SIGTERM and SIGINT, flushes buffered spans, then exits. Without this, everything still sitting in the batch buffer is lost on every deploy.
+Spans sit in a batch buffer for up to five seconds, so a process that exits without flushing loses them — on every deploy, which is exactly when you want them.
 
-If your app already handles those signals, turn it off and flush yourself:
+By default the package listens for SIGTERM and SIGINT, flushes, and then **hands the signal back**: your own handlers still run, and if there are none the process terminates with the conventional exit code (143 for SIGTERM, 130 for SIGINT). It never calls `process.exit` itself unless you ask it to with `exitOnSignal: true`.
+
+If your app already drains connections, own the order yourself — close the server first so no new spans are created, then flush:
 
 ```ts
 Telemetry.start({ ..., handleShutdownSignals: false });
 
-process.on("SIGTERM", async () => {
+const drain = async (code: number) => {
   await app.close();
   await Telemetry.shutdown();
-  process.exit(0);
-});
+  process.exit(code);
+};
+
+process.on("SIGTERM", () => drain(143));
+process.on("SIGINT", () => drain(130));
 ```
+
+Do not leave `handleShutdownSignals` on *and* call `Telemetry.shutdown()` from your own handler — one flush runs, both callers await it, but the ordering of your drain is no longer guaranteed.
 
 ## Turning things off
 
@@ -151,6 +164,16 @@ Telemetry.start({
 
 To disable everything at once, set `enabled: false`. `Telemetry.start` becomes a no-op, no SDK is loaded. Use it for tests.
 
+## When configuration is wrong
+
+A telemetry mistake should not stop your service from serving traffic. If the configuration is rejected, `Telemetry.start` does **not** throw: it logs, leaves telemetry off, and lets your app boot. Pass `onStartupError` to route that into your own logger or alerting:
+
+```ts
+Telemetry.start({ ..., onStartupError: (error) => logger.error({ error }, "telemetry disabled") });
+```
+
+Pass a handler that rethrows if you would rather fail the boot.
+
 ## Options
 
 | Option | Default | What it does |
@@ -160,20 +183,25 @@ To disable everything at once, set `enabled: false`. `Telemetry.start` becomes a
 | `environment` | — | Shows as `deployment.environment.name`. |
 | `enabled` | `true` | `false` turns everything off. |
 | `resourceAttributes` | `{}` | Extra attributes on every span, metric and log. |
+| `resourceDetection` | `true` | Auto-detects host and process attributes. Note this stamps `process.command_args` — your argv — on everything; set `false` if you pass secrets as flags. |
+| `spanLimits.attributeValueLengthLimit` | `4096` | Caps attribute size so one oversized request can't produce an unbounded span. |
 | `traces.exporter` | `none` | `none` · `console` · `otlp` · `gcp` |
 | `traces.sampleRatio` | keep all | `0.1` keeps 10%. Children follow their parent's decision. |
 | `traces.otlp.url` | — | Collector endpoint. Also takes `headers` and `timeoutMillis`. |
+| `traces.batch` | SDK defaults | `maxQueueSize`, `maxExportBatchSize`, `scheduledDelayMillis`, `exportTimeoutMillis`. Raise the queue if you drop spans under load. |
 | `traces.gcp.projectId` | `$GCP_PROJECT_ID` | Also takes `keyFile`; falls back to application default credentials. |
 | `metrics.exporter` | `none` | `none` · `console` · `otlp` · `gcp` · `prometheus` |
 | `metrics.exportIntervalMillis` | `60000` | How often metrics are pushed. Prometheus ignores it — it's pull-based. |
-| `metrics.prometheus` | port `9464` | `host`, `port`, `endpoint` for the scrape server. |
+| `metrics.prometheus` | `127.0.0.1:9464` | `host`, `port`, `endpoint`. Binds loopback by default — the endpoint is unauthenticated, so only widen it behind a private network. |
 | `logs.exporter` | `none` | `none` · `console` · `otlp` |
 | `instrumentation.disable` | `[]` | Instrumentations to switch off, e.g. `[InstrumentationName.DNS]`. |
 | `instrumentation.enable` | `[]` | Switch on one that's off by default, e.g. `FS`. Beats `disable`. |
 | `instrumentation.ignoreIncomingPaths` | `[]` | No spans for these paths. Put your health check here. |
 | `instrumentation.additional` | `[]` | Your own instrumentations. |
 | `propagators` | `tracecontext`, `baggage` | Trace context formats to read and write. |
-| `handleShutdownSignals` | `true` | Flush on SIGTERM/SIGINT. |
+| `handleShutdownSignals` | `true` | Flush on SIGTERM/SIGINT, then hand the signal back. |
+| `exitOnSignal` | `false` | Call `process.exit(0)` after flushing instead of handing the signal back. |
+| `onStartupError` | logs and continues | Called instead of throwing when the configuration is rejected. |
 | `shutdownTimeoutMillis` | `5000` | Give up if the flush hangs, so shutdown can't stall. |
 
 ## Recipes

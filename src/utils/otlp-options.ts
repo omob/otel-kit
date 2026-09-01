@@ -4,6 +4,6 @@ export function toOtlpExporterOptions(options: IOtlpOptions = {}) {
   return {
     ...(options.url ? { url: options.url } : {}),
     ...(options.headers ? { headers: options.headers } : {}),
-    ...(options.timeoutMillis ? { timeoutMillis: options.timeoutMillis } : {}),
+    ...(options.timeoutMillis !== undefined ? { timeoutMillis: options.timeoutMillis } : {}),
   };
 }

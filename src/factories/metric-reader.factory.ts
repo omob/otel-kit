@@ -8,7 +8,7 @@ import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-proto";
 import { ExporterType } from "../enums/exporter-type.enum";
 import { TelemetryErrorCode } from "../enums/telemetry-error-code.enum";
 import TelemetryConfigError from "../errors/telemetry-config.error";
-import { IMetricConfig } from "../telemetry.types";
+import { IGcpMonitoringModule, IMetricConfig, IPrometheusModule } from "../telemetry.types";
 import { loadOptionalDependency } from "../utils/optional-dependency";
 import { toGcpExporterOptions } from "../utils/gcp-credentials";
 import { toOtlpExporterOptions } from "../utils/otlp-options";
@@ -16,9 +16,8 @@ import { toOtlpExporterOptions } from "../utils/otlp-options";
 const DEFAULT_EXPORT_INTERVAL_MILLIS = 60_000;
 const GCP_MONITORING_MODULE = "@google-cloud/opentelemetry-cloud-monitoring-exporter";
 const PROMETHEUS_MODULE = "@opentelemetry/exporter-prometheus";
-
-type GcpMonitoringModule = { MetricExporter: new (options: object) => PushMetricExporter };
-type PrometheusModule = { PrometheusExporter: new (options: object) => MetricReader };
+// the exporter binds every interface when host is unset, exposing an unauthenticated scrape endpoint
+const DEFAULT_PROMETHEUS_HOST = "127.0.0.1";
 
 class MetricReaderFactory {
   static createReader(config: IMetricConfig): MetricReader | undefined {
@@ -27,10 +26,10 @@ class MetricReaderFactory {
     }
 
     if (config.exporter === ExporterType.PROMETHEUS) {
-      const { PrometheusExporter } = loadOptionalDependency<PrometheusModule>(PROMETHEUS_MODULE);
+      const { PrometheusExporter } = loadOptionalDependency<IPrometheusModule>(PROMETHEUS_MODULE);
 
       return new PrometheusExporter({
-        host: config.prometheus?.host,
+        host: config.prometheus?.host ?? DEFAULT_PROMETHEUS_HOST,
         port: config.prometheus?.port,
         endpoint: config.prometheus?.endpoint,
       });
@@ -49,7 +48,7 @@ class MetricReaderFactory {
       case ExporterType.OTLP:
         return new OTLPMetricExporter(toOtlpExporterOptions(config.otlp));
       case ExporterType.GCP:
-        return new (loadOptionalDependency<GcpMonitoringModule>(GCP_MONITORING_MODULE).MetricExporter)(
+        return new (loadOptionalDependency<IGcpMonitoringModule>(GCP_MONITORING_MODULE).MetricExporter)(
           toGcpExporterOptions(config.gcp)
         );
       default:

@@ -72,6 +72,31 @@ describe("withSpan", () => {
     expect(spanNamed("inner").ended).toBe(true);
   });
 
+  it("preserves a thrown value that is not an Error", async () => {
+    await expect(withSpan("non-error", async () => Promise.reject(null))).rejects.toBeNull();
+
+    const span = spanNamed("non-error");
+
+    expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: "null" });
+    expect(span.events.map((event) => event.name)).toContain("exception");
+  });
+
+  it("leaves the span unmarked for a failure the caller treats as expected", async () => {
+    const expected = new Error("wrong password");
+
+    await expect(
+      withSpan("expected-failure", { isError: (error) => error !== expected }, async () => {
+        throw expected;
+      })
+    ).rejects.toBe(expected);
+
+    const span = spanNamed("expected-failure");
+
+    expect(span.status.code).toBe(SpanStatusCode.UNSET);
+    expect(span.events).toHaveLength(0);
+    expect(span.ended).toBe(true);
+  });
+
   it("uses the supplied tracer as the instrumentation scope", async () => {
     await withSpan("scoped", { tracer: getTracer("auth-module", "1.2.3") }, async () => undefined);
 

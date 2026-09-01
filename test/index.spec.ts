@@ -24,9 +24,12 @@ describe("package entry point", () => {
       });
 
       const { Telemetry } = require("../src/index");
+      const onStartupError = jest.fn();
 
-      expect(() => Telemetry.start({ serviceName: "kreela-api", handleShutdownSignals: false })).toThrow(
-        "the sdk was loaded at import time"
+      Telemetry.start({ serviceName: "kreela-api", handleShutdownSignals: false, onStartupError });
+
+      expect(onStartupError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "the sdk was loaded at import time" })
       );
     });
   });

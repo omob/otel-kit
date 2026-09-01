@@ -26,20 +26,28 @@ describe("MetricReaderFactory", () => {
     await reader?.shutdown();
   });
 
-  it("explains which optional dependency the prometheus exporter needs", () => {
+  it("binds the scrape server to loopback unless a host is configured", async () => {
+    const reader = MetricReaderFactory.createReader({
+      exporter: ExporterType.PROMETHEUS,
+      prometheus: { port: 19465 },
+    }) as unknown as { _host?: string };
+
+    expect(reader._host).toBe("127.0.0.1");
+
+    await (reader as unknown as { shutdown: () => Promise<void> }).shutdown();
+  });
+
+  it("surfaces the real failure when an installed exporter cannot load", () => {
     jest.isolateModules(() => {
       jest.doMock("@opentelemetry/exporter-prometheus", () => {
-        throw Object.assign(new Error("not installed"), { code: "MODULE_NOT_FOUND" });
+        throw Object.assign(new Error("cannot find module 'some-transitive-dep'"), { code: "MODULE_NOT_FOUND" });
       });
 
       const Factory = require("../../src/factories/metric-reader.factory").default;
 
-      expect(() => Factory.createReader({ exporter: ExporterType.PROMETHEUS })).toThrow(
-        expect.objectContaining({
-          errorCode: TelemetryErrorCode.MISSING_OPTIONAL_DEPENDENCY,
-          message: expect.stringContaining("@opentelemetry/exporter-prometheus"),
-        })
-      );
+      expect(() => Factory.createReader({ exporter: ExporterType.PROMETHEUS })).toThrow("some-transitive-dep");
+
+      jest.dontMock("@opentelemetry/exporter-prometheus");
     });
   });
 

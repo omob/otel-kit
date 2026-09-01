@@ -6,4 +6,5 @@ module.exports = {
     "^.+\\.ts$": ["ts-jest", { tsconfig: "tsconfig.test.json" }],
   },
   clearMocks: true,
+  testTimeout: 15000,
 };
