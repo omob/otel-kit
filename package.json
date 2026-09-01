@@ -1,0 +1,74 @@
+{
+  "name": "otel-kit",
+  "version": "0.1.0",
+  "description": "Configurable OpenTelemetry bootstrap for Node services: traces, metrics and logs with pluggable exporters",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "test": "jest --runInBand"
+  },
+  "keywords": [
+    "opentelemetry",
+    "tracing",
+    "observability",
+    "metrics",
+    "logs"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@opentelemetry/auto-instrumentations-node": "^0.67.0",
+    "@opentelemetry/core": "2.11.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "0.222.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "0.222.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "0.222.0",
+    "@opentelemetry/propagator-b3": "2.11.0",
+    "@opentelemetry/propagator-jaeger": "2.11.0",
+    "@opentelemetry/resources": "2.11.0",
+    "@opentelemetry/sdk-logs": "0.222.0",
+    "@opentelemetry/sdk-metrics": "2.11.0",
+    "@opentelemetry/sdk-node": "0.222.0",
+    "@opentelemetry/sdk-trace-node": "2.11.0",
+    "@opentelemetry/semantic-conventions": "^1.36.0"
+  },
+  "peerDependencies": {
+    "@google-cloud/opentelemetry-cloud-monitoring-exporter": ">=0.20.0",
+    "@google-cloud/opentelemetry-cloud-trace-exporter": ">=2.4.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-prometheus": ">=0.200.0"
+  },
+  "peerDependenciesMeta": {
+    "@google-cloud/opentelemetry-cloud-monitoring-exporter": {
+      "optional": true
+    },
+    "@google-cloud/opentelemetry-cloud-trace-exporter": {
+      "optional": true
+    },
+    "@opentelemetry/exporter-prometheus": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-prometheus": "0.222.0",
+    "@opentelemetry/sdk-trace-base": "^2.11.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.14.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.12",
+    "typescript": "^5.5.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omob/otel-kit.git"
+  }
+}

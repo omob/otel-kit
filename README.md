@@ -1,0 +1,212 @@
+# otel-kit
+
+OpenTelemetry setup for Node services, in one function call.
+
+You pick where traces, metrics and logs go. The package handles the SDK, the sampling, the shutdown flush, and the boilerplate around spans.
+
+## Install
+
+```bash
+npm install otel-kit @opentelemetry/api
+```
+
+OTLP exporters are included. Install these only if you use them:
+
+```bash
+npm install @opentelemetry/exporter-prometheus                      # for Prometheus metrics
+npm install @google-cloud/opentelemetry-cloud-trace-exporter \
+            @google-cloud/opentelemetry-cloud-monitoring-exporter   # for Google Cloud
+```
+
+If you pick an exporter you haven't installed, startup fails and tells you which package to install.
+
+## Quick start
+
+Create `src/instrumentation.ts`:
+
+```ts
+import "dotenv/config";
+import { ExporterType, Telemetry } from "otel-kit";
+
+Telemetry.start({
+  serviceName: "my-service",
+  serviceVersion: process.env.APP_VERSION,
+  environment: process.env.NODE_ENV,
+  enabled: process.env.NODE_ENV !== "test",
+  traces: {
+    exporter: ExporterType.OTLP,
+    otlp: { url: "http://localhost:4318/v1/traces" },
+    sampleRatio: 0.1,
+  },
+  instrumentation: { ignoreIncomingPaths: ["/health"] },
+});
+```
+
+Load it before your app:
+
+```json
+{ "scripts": { "start": "node --require ./dist/instrumentation.js dist/server.js" } }
+```
+
+That's it. HTTP, database and framework calls are traced automatically.
+
+### Why `--require`
+
+Instrumentation can only patch libraries loaded *after* it starts. `--require` guarantees that.
+
+Importing it at the top of your entry file also works, as long as nothing you want traced is imported above it. One reordered import and tracing silently stops — hence the flag.
+
+## Your own spans
+
+`withSpan` handles errors and cleanup for you:
+
+```ts
+import { withSpan } from "otel-kit";
+
+async function login({ email, password }) {
+  return withSpan("login", { attributes: { "auth.method": "password" } }, async (span) => {
+    const user = await findUser(email);
+    span.setAttribute("user.id", user.id);
+
+    return withSpan("token.generate", () => generateToken(user));
+  });
+}
+```
+
+Throw anywhere inside and the span is marked failed, the exception is recorded, and the error still propagates to your caller. Spans always end, on success or failure.
+
+Never put emails, tokens or passwords in attributes — spans are stored unredacted.
+
+Two more helpers:
+
+```ts
+import { currentTraceId, getTracer } from "otel-kit";
+
+currentTraceId();            // trace id of the active span, or undefined
+getTracer("auth-module");    // pass as `tracer` in withSpan options to name the scope
+```
+
+`currentTraceId()` is worth putting in your error handler, so support can jump from an error response straight to the trace:
+
+```ts
+fastify.setErrorHandler((err, request, reply) =>
+  reply.status(err.statusCode ?? 500).send({ message: err.message, traceId: currentTraceId() })
+);
+```
+
+## Shutting down
+
+By default the package listens for SIGTERM and SIGINT, flushes buffered spans, then exits. Without this, everything still sitting in the batch buffer is lost on every deploy.
+
+If your app already handles those signals, turn it off and flush yourself:
+
+```ts
+Telemetry.start({ ..., handleShutdownSignals: false });
+
+process.on("SIGTERM", async () => {
+  await app.close();
+  await Telemetry.shutdown();
+  process.exit(0);
+});
+```
+
+## Turning things off
+
+Every signal is optional and off by default. Omit what you don't want:
+
+```ts
+Telemetry.start({
+  serviceName: "my-service",
+  traces: { exporter: ExporterType.OTLP, otlp: { url } },
+  // no metrics block, no logs block — nothing is created for them
+});
+```
+
+To disable everything at once, set `enabled: false`. `Telemetry.start` becomes a no-op, no SDK is loaded. Use it for tests.
+
+## Options
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `serviceName` | **required** | Name your service appears under. |
+| `serviceVersion` | — | Shows on every span as `service.version`. |
+| `environment` | — | Shows as `deployment.environment.name`. |
+| `enabled` | `true` | `false` turns everything off. |
+| `resourceAttributes` | `{}` | Extra attributes on every span, metric and log. |
+| `traces.exporter` | `none` | `none` · `console` · `otlp` · `gcp` |
+| `traces.sampleRatio` | keep all | `0.1` keeps 10%. Children follow their parent's decision. |
+| `traces.otlp.url` | — | Collector endpoint. Also takes `headers` and `timeoutMillis`. |
+| `traces.gcp.projectId` | `$GCP_PROJECT_ID` | Also takes `keyFile`; falls back to application default credentials. |
+| `metrics.exporter` | `none` | `none` · `console` · `otlp` · `gcp` · `prometheus` |
+| `metrics.exportIntervalMillis` | `60000` | How often metrics are pushed. Prometheus ignores it — it's pull-based. |
+| `metrics.prometheus` | port `9464` | `host`, `port`, `endpoint` for the scrape server. |
+| `logs.exporter` | `none` | `none` · `console` · `otlp` |
+| `instrumentation.disable` | `[]` | Instrumentations to switch off, e.g. `[InstrumentationName.DNS]`. |
+| `instrumentation.enable` | `[]` | Switch on one that's off by default, e.g. `FS`. Beats `disable`. |
+| `instrumentation.ignoreIncomingPaths` | `[]` | No spans for these paths. Put your health check here. |
+| `instrumentation.additional` | `[]` | Your own instrumentations. |
+| `propagators` | `tracecontext`, `baggage` | Trace context formats to read and write. |
+| `handleShutdownSignals` | `true` | Flush on SIGTERM/SIGINT. |
+| `shutdownTimeoutMillis` | `5000` | Give up if the flush hangs, so shutdown can't stall. |
+
+## Recipes
+
+**Jaeger** — Jaeger accepts OTLP directly, so there's no Jaeger exporter to install:
+
+```ts
+traces: { exporter: ExporterType.OTLP, otlp: { url: "http://jaeger:4318/v1/traces" } }
+```
+
+If services calling you send Jaeger's `uber-trace-id` header instead of W3C `traceparent`, accept both — otherwise their trace and yours end up unlinked:
+
+```ts
+propagators: [PropagatorType.TRACE_CONTEXT, PropagatorType.BAGGAGE, PropagatorType.JAEGER]
+```
+
+All listed formats are written on outgoing calls, and an incoming call joins the upstream trace if any of them matches. `B3` and `B3_MULTI` cover Zipkin and Envoy/Istio meshes.
+
+**Prometheus** — serves a scrape endpoint instead of pushing:
+
+```ts
+metrics: { exporter: ExporterType.PROMETHEUS, prometheus: { port: 9464 } }
+```
+
+Then scrape `http://your-service:9464/metrics`.
+
+**Google Cloud**:
+
+```ts
+traces: { exporter: ExporterType.GCP, gcp: { projectId: "my-project" } }
+```
+
+Uses `GOOGLE_APPLICATION_CREDENTIALS` if it points at a readable file, otherwise application default credentials.
+
+**Seeing spans locally** — no collector needed:
+
+```ts
+traces: { exporter: ExporterType.CONSOLE, sampleRatio: 1 }
+```
+
+Spans print on shutdown, since they're batched.
+
+**Quieter traces** — the noisiest instrumentations are usually DNS and net, especially with a database driver reconnecting:
+
+```ts
+instrumentation: { disable: [InstrumentationName.DNS, InstrumentationName.NET] }
+```
+
+## When something's wrong
+
+Configuration mistakes throw `TelemetryConfigError` at startup rather than failing quietly later:
+
+| Error code | Cause |
+| --- | --- |
+| `MISSING_SERVICE_NAME` | `serviceName` empty or missing. |
+| `INVALID_SAMPLE_RATIO` | `sampleRatio` outside 0–1. |
+| `UNSUPPORTED_EXPORTER` | Exporter can't handle that signal, e.g. `prometheus` for traces. |
+| `UNSUPPORTED_PROPAGATOR` | Unknown propagator name. |
+| `MISSING_OPTIONAL_DEPENDENCY` | Exporter selected but its package isn't installed. |
+
+**No traces showing up?** In order: is `enabled` true; is `traces.exporter` something other than `none`; is the path in `ignoreIncomingPaths`; is `sampleRatio` dropping them; is the collector URL reachable from inside the container.
+
+**Traces stop at your service** — a caller's trace doesn't continue into yours: they're probably using a propagation format you haven't listed in `propagators`.

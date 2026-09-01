@@ -1,0 +1,33 @@
+describe("package entry point", () => {
+  it("exposes the public surface", () => {
+    const entry = require("../src/index");
+
+    expect(Object.keys(entry).sort()).toEqual(
+      ["ExporterType", "InstrumentationName", "PropagatorType", "Telemetry", "TelemetryConfigError", "TelemetryErrorCode", "currentTraceId", "getTracer", "withSpan"].sort()
+    );
+  });
+
+  it("keeps the sdk out of the module graph of apps that only import the span helpers", () => {
+    jest.isolateModules(() => {
+      jest.doMock("@opentelemetry/sdk-node", () => {
+        throw new Error("the sdk was loaded at import time");
+      });
+
+      expect(() => require("../src/index")).not.toThrow();
+    });
+  });
+
+  it("loads the sdk when telemetry starts", () => {
+    jest.isolateModules(() => {
+      jest.doMock("@opentelemetry/sdk-node", () => {
+        throw new Error("the sdk was loaded at import time");
+      });
+
+      const { Telemetry } = require("../src/index");
+
+      expect(() => Telemetry.start({ serviceName: "kreela-api", handleShutdownSignals: false })).toThrow(
+        "the sdk was loaded at import time"
+      );
+    });
+  });
+});

@@ -1,0 +1,76 @@
+import type { Instrumentation } from "@opentelemetry/instrumentation";
+import type { IncomingMessage } from "http";
+import { InstrumentationName } from "../../src/enums/instrumentation-name.enum";
+import InstrumentationFactory from "../../src/factories/instrumentation.factory";
+import { IInstrumentationConfig } from "../../src/telemetry.types";
+
+const namesOf = (instrumentations: Instrumentation[]) =>
+  instrumentations.map((instrumentation) => instrumentation.instrumentationName);
+
+const ignoreHookFor = (config: IInstrumentationConfig) => {
+  const http = InstrumentationFactory.createInstrumentations(config).find(
+    (instrumentation) => instrumentation.instrumentationName === InstrumentationName.HTTP
+  );
+
+  return (http?.getConfig() as { ignoreIncomingRequestHook: (request: IncomingMessage) => boolean })
+    .ignoreIncomingRequestHook;
+};
+
+describe("InstrumentationFactory", () => {
+  it("leaves the fs instrumentation off by default", () => {
+    expect(namesOf(InstrumentationFactory.createInstrumentations())).not.toContain(InstrumentationName.FS);
+  });
+
+  it("drops every instrumentation in the disable list", () => {
+    const names = namesOf(InstrumentationFactory.createInstrumentations({ disable: [InstrumentationName.DNS] }));
+
+    expect(names).not.toContain(InstrumentationName.DNS);
+    expect(names).toContain(InstrumentationName.HTTP);
+  });
+
+  it("turns on an instrumentation that is off by default", () => {
+    const names = namesOf(InstrumentationFactory.createInstrumentations({ enable: [InstrumentationName.FS] }));
+
+    expect(names).toContain(InstrumentationName.FS);
+  });
+
+  it("lets enable win over disable for the same instrumentation", () => {
+    const names = namesOf(
+      InstrumentationFactory.createInstrumentations({
+        disable: [InstrumentationName.DNS],
+        enable: [InstrumentationName.DNS],
+      })
+    );
+
+    expect(names).toContain(InstrumentationName.DNS);
+  });
+
+  it("appends additional instrumentations", () => {
+    const additional = { instrumentationName: "custom" } as Instrumentation;
+
+    expect(namesOf(InstrumentationFactory.createInstrumentations({ additional: [additional] }))).toContain("custom");
+  });
+
+  it.each(["/health", "/health/live", "/health?verbose=true"])("ignores incoming requests to %s", (url) => {
+    const hook = ignoreHookFor({ ignoreIncomingPaths: ["/health"] });
+
+    expect(hook({ url } as IncomingMessage)).toBe(true);
+  });
+
+  it.each(["/healthy", "/api/health", "/"])("keeps tracing incoming requests to %s", (url) => {
+    const hook = ignoreHookFor({ ignoreIncomingPaths: ["/health"] });
+
+    expect(hook({ url } as IncomingMessage)).toBe(false);
+  });
+
+  it("keeps the http instrumentation disabled when it is both disabled and given ignored paths", () => {
+    const names = namesOf(
+      InstrumentationFactory.createInstrumentations({
+        disable: [InstrumentationName.HTTP],
+        ignoreIncomingPaths: ["/health"],
+      })
+    );
+
+    expect(names).not.toContain(InstrumentationName.HTTP);
+  });
+});
