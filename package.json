@@ -1,6 +1,6 @@
 {
   "name": "@omob/otel-kit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Configurable OpenTelemetry bootstrap for Node services: traces, metrics and logs with pluggable exporters",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -50,6 +50,7 @@
     "@opentelemetry/exporter-metrics-otlp-grpc": "0.222.0",
     "@opentelemetry/exporter-metrics-otlp-http": "0.222.0",
     "@opentelemetry/exporter-metrics-otlp-proto": "0.222.0",
+    "@opentelemetry/exporter-prometheus": "0.222.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "0.222.0",
     "@opentelemetry/exporter-trace-otlp-http": "0.222.0",
     "@opentelemetry/exporter-trace-otlp-proto": "0.222.0",
@@ -66,8 +67,7 @@
   "peerDependencies": {
     "@google-cloud/opentelemetry-cloud-monitoring-exporter": ">=0.20.0",
     "@google-cloud/opentelemetry-cloud-trace-exporter": ">=2.4.0",
-    "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/exporter-prometheus": ">=0.200.0"
+    "@opentelemetry/api": "^1.9.0"
   },
   "peerDependenciesMeta": {
     "@google-cloud/opentelemetry-cloud-monitoring-exporter": {
@@ -75,14 +75,10 @@
     },
     "@google-cloud/opentelemetry-cloud-trace-exporter": {
       "optional": true
-    },
-    "@opentelemetry/exporter-prometheus": {
-      "optional": true
     }
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/exporter-prometheus": "0.222.0",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^20.14.0",

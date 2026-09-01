@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+Fixed
+
+- ESM consumers can use named imports. The entry point emitted export getters that wrapped a call, which Node's CommonJS lexer cannot read statically, so `import { Telemetry } from "@omob/otel-kit"` failed with `SyntaxError: Named export 'Telemetry' not found`.
+- Prometheus resolves under pnpm and Yarn PnP. It was declared an optional peer, but it is a dependency of `@opentelemetry/sdk-node` and so is always installed; the optional declaration saved nobody an install and only made it unresolvable under strict layouts. It is a plain dependency now.
+
 ## 0.2.0
 
 Added
@@ -14,7 +21,7 @@ Added
 
 Fixed
 
-- Every OTLP exporter package is now a declared dependency instead of resolving through hoisting, which failed under pnpm and Yarn PnP.
+- Every OTLP exporter package is now a declared dependency instead of resolving through hoisting.
 
 ## 0.1.0
 

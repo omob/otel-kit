@@ -35,12 +35,11 @@ Traces answer "what happened in this one request". **Metrics** are numbers over 
 npm install @omob/otel-kit @opentelemetry/api
 ```
 
-OTLP exporters are included. Install these only if you use them:
+OTLP and Prometheus exporters are included. Google Cloud is the only one you install separately:
 
 ```bash
-npm install @opentelemetry/exporter-prometheus                      # for Prometheus metrics
 npm install @google-cloud/opentelemetry-cloud-trace-exporter \
-            @google-cloud/opentelemetry-cloud-monitoring-exporter   # for Google Cloud
+            @google-cloud/opentelemetry-cloud-monitoring-exporter
 ```
 
 If you pick an exporter you haven't installed, startup fails and tells you which package to install.
