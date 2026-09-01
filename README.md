@@ -60,7 +60,7 @@ Telemetry.start({
   traces: {
     exporter: ExporterType.OTLP,
     otlp: { url: "http://localhost:4318/v1/traces" },
-    sampleRatio: 0.1,
+    sampleRatio: Number(process.env.OTEL_TRACES_SAMPLE_RATIO ?? 1),
   },
   instrumentation: { ignoreIncomingPaths: ["/health"] },
 });
@@ -73,6 +73,16 @@ Load it before your app:
 ```
 
 That's it. HTTP, database and framework calls are traced automatically.
+
+Keep the ratio at 1 while you are setting things up. Sampling below 1 is a production concern, and turning it down before you have seen a single trace is the most common reason nothing appears in a backend. Dial it down later with the env var.
+
+**On Fastify, turn its instrumentation on** — the upstream package ships it disabled, along with `fs`:
+
+```ts
+instrumentation: { enable: [InstrumentationName.FASTIFY], ignoreIncomingPaths: ["/health"] }
+```
+
+Without it, every request is one bare `GET` span with no `http.route`, so nothing groups by route. Express, Koa, Hapi, NestJS, Mongo, Postgres, Redis, Kafka and outbound HTTP need no such step — they are on by default.
 
 ### Why `--require`
 
@@ -281,7 +291,19 @@ Configuration mistakes throw `TelemetryConfigError` at startup rather than faili
 | `UNSUPPORTED_PROPAGATOR` | Unknown propagator name. |
 | `MISSING_OPTIONAL_DEPENDENCY` | Exporter selected but its package isn't installed. |
 
-**No traces showing up?** Turn on OpenTelemetry's own logging first — it is off by default, which is why a bad endpoint or an unreachable collector produces silence rather than an error:
+**No traces showing up? Read the `trace_flags` on your own log lines first.** If you use pino, bunyan or winston, the log instrumentation stamps every line with the active trace:
+
+```json
+{"trace_id":"9d497527a7ec14c5a81325251113283d","span_id":"b58894198a10765d","trace_flags":"00"}
+```
+
+That one field splits the problem in half:
+
+- **`trace_flags: "00"`** — the span was created and then dropped by the sampler. Nothing was ever sent, so the collector is irrelevant. Raise `sampleRatio` to 1, or check whether an inbound `traceparent` arrived already marked unsampled — parent-based sampling honours the caller's decision.
+- **`trace_flags: "01"`** — the span was sampled and handed to the exporter, so the problem is downstream: the endpoint, the path, or the network.
+- **no `trace_id` at all** — the SDK never started, or it started after your app loaded. Check the `--require` flag.
+
+Then turn on OpenTelemetry's own logging — it is off by default, which is why a bad endpoint or an unreachable collector produces silence rather than an error:
 
 ```ts
 import { DiagLogLevel } from "@opentelemetry/api";

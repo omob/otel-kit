@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2
+
+Documentation
+
+- The quick start sampled at 10%, so anyone following it locally saw an empty backend and no error. It samples everything by default now, with the ratio behind an env var for production.
+- Fastify instrumentation is disabled by the upstream package. Says so, next to the quick start, with the one line that turns it on.
+- Troubleshooting starts with the `trace_flags` field on your own log lines, which separates "the sampler dropped it" from "the exporter could not deliver it" before you go looking at collectors.
+
 ## 0.2.1
 
 Fixed
