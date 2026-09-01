@@ -199,6 +199,12 @@ Pass a handler that rethrows if you would rather fail the boot.
 | `instrumentation.ignoreIncomingPaths` | `[]` | No spans for these paths. Put your health check here. |
 | `instrumentation.additional` | `[]` | Your own instrumentations. |
 | `propagators` | `tracecontext`, `baggage` | Trace context formats to read and write. |
+| `traces.sampler` | — | A sampler of your own. Takes precedence over `sampleRatio`. |
+| `traces.additionalProcessors` | `[]` | Extra span processors — scrub attributes, enrich spans, or dual-write to a second collector. |
+| `traces.otlp.protocol` | `http/protobuf` | `http/protobuf` · `http/json` · `grpc`. |
+| `metrics.views` | `[]` | Histogram buckets and cardinality limits. |
+| `diagLogLevel` | off | Turns on OpenTelemetry's own internal logging. See below. |
+| `diagLogger` | console | Where that internal logging goes. |
 | `handleShutdownSignals` | `true` | Flush on SIGTERM/SIGINT, then hand the signal back. |
 | `exitOnSignal` | `false` | Call `process.exit(0)` after flushing instead of handing the signal back. |
 | `onStartupError` | logs and continues | Called instead of throwing when the configuration is rejected. |
@@ -219,6 +225,20 @@ propagators: [PropagatorType.TRACE_CONTEXT, PropagatorType.BAGGAGE, PropagatorTy
 ```
 
 All listed formats are written on outgoing calls, and an incoming call joins the upstream trace if any of them matches. `B3` and `B3_MULTI` cover Zipkin and Envoy/Istio meshes.
+
+**A gRPC collector** — OTLP defaults to HTTP/protobuf on port 4318. For a collector speaking gRPC on 4317:
+
+```ts
+traces: { exporter: ExporterType.OTLP, otlp: { protocol: OtlpProtocol.GRPC, url: "http://collector:4317" } }
+```
+
+Note the HTTP protocols need the full signal path (`/v1/traces`); gRPC takes the base URL. A missing path is a silent 404 on every export.
+
+**Scrubbing attributes before they leave** — add your own span processor:
+
+```ts
+traces: { exporter: ExporterType.OTLP, additionalProcessors: [new RedactingSpanProcessor()] }
+```
 
 **Prometheus** — serves a scrape endpoint instead of pushing:
 
@@ -262,6 +282,16 @@ Configuration mistakes throw `TelemetryConfigError` at startup rather than faili
 | `UNSUPPORTED_PROPAGATOR` | Unknown propagator name. |
 | `MISSING_OPTIONAL_DEPENDENCY` | Exporter selected but its package isn't installed. |
 
-**No traces showing up?** In order: is `enabled` true; is `traces.exporter` something other than `none`; is the path in `ignoreIncomingPaths`; is `sampleRatio` dropping them; is the collector URL reachable from inside the container.
+**No traces showing up?** Turn on OpenTelemetry's own logging first — it is off by default, which is why a bad endpoint or an unreachable collector produces silence rather than an error:
+
+```ts
+import { DiagLogLevel } from "@opentelemetry/api";
+
+Telemetry.start({ ..., diagLogLevel: DiagLogLevel.ERROR });
+```
+
+Pass `diagLogger` to send it to your own logger instead of the console. With that on, most causes announce themselves. Without it, check in order: is `enabled` true; is `traces.exporter` something other than `none`; is the path in `ignoreIncomingPaths`; is `sampleRatio` dropping them; is the collector URL reachable from inside the container.
+
+**Everything arrives under the wrong service name?** `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` are read by the SDK's own resource detectors, and detected attributes win over the ones you pass in code. A service mesh or a shared Helm chart injecting either will silently rename your service. Set `resourceDetection: false` to stop that.
 
 **Traces stop at your service** — a caller's trace doesn't continue into yours: they're probably using a propagation format you haven't listed in `propagators`.

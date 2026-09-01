@@ -1,3 +1,4 @@
+import { diag, DiagConsoleLogger } from "@opentelemetry/api";
 import type { NodeSDK } from "@opentelemetry/sdk-node";
 import { TelemetryErrorCode } from "../enums/telemetry-error-code.enum";
 import TelemetryConfigError from "../errors/telemetry-config.error";
@@ -51,6 +52,8 @@ class TelemetryService {
       throw new TelemetryConfigError(TelemetryErrorCode.MISSING_SERVICE_NAME, "serviceName is required");
     }
 
+    this.configureDiagnostics(config);
+
     const sdk = this.loadSdkFactory().createSdk(config);
 
     sdk.start();
@@ -61,6 +64,15 @@ class TelemetryService {
     if (config.handleShutdownSignals !== false) {
       this.registerShutdownHandlers(config);
     }
+  }
+
+  // otel writes its own failures through diag, which discards everything until a logger is installed
+  private configureDiagnostics(config: ITelemetryConfig): void {
+    if (config.diagLogLevel === undefined) {
+      return;
+    }
+
+    diag.setLogger(config.diagLogger ?? new DiagConsoleLogger(), config.diagLogLevel);
   }
 
   // telemetry must never stop a service from booting, so a bad configuration disables it instead of throwing

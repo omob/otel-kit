@@ -1,5 +1,5 @@
 import { NodeSDK } from "@opentelemetry/sdk-node";
-import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import { BatchSpanProcessor, SpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ExporterType } from "../enums/exporter-type.enum";
 import { ILogConfig, IMetricConfig, ITelemetryConfig, ITraceConfig } from "../telemetry.types";
 import InstrumentationFactory from "./instrumentation.factory";
@@ -16,17 +16,23 @@ const DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT = 4_096;
 class SdkFactory {
   static createSdk(config: ITelemetryConfig): NodeSDK {
     const traces = config.traces ?? DISABLED_SIGNAL;
+    const metrics = config.metrics ?? DISABLED_SIGNAL;
     const traceExporter = TraceExporterFactory.createExporter(traces);
-    const metricReader = MetricReaderFactory.createReader(config.metrics ?? DISABLED_SIGNAL);
+    const metricReader = MetricReaderFactory.createReader(metrics);
+    const spanProcessors: SpanProcessor[] = [
+      ...(traceExporter ? [new BatchSpanProcessor(traceExporter, traces.batch)] : []),
+      ...(traces.additionalProcessors ?? []),
+    ];
 
     // empty arrays keep NodeSDK from falling back to its OTEL_* environment defaults, which export to localhost:4318
     return new NodeSDK({
       resource: ResourceFactory.createResource(config),
       autoDetectResources: config.resourceDetection ?? true,
-      sampler: SamplerFactory.createSampler(traces.sampleRatio),
+      sampler: traces.sampler ?? SamplerFactory.createSampler(traces.sampleRatio),
       spanLimits: { attributeValueLengthLimit: DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT, ...config.spanLimits },
-      spanProcessors: traceExporter ? [new BatchSpanProcessor(traceExporter, traces.batch)] : [],
+      spanProcessors,
       metricReaders: metricReader ? [metricReader] : [],
+      views: metrics.views ?? [],
       logRecordProcessors: LogProcessorFactory.createProcessors(config.logs ?? DISABLED_SIGNAL),
       instrumentations: InstrumentationFactory.createInstrumentations(config.instrumentation),
       textMapPropagator: PropagatorFactory.createPropagator(config.propagators),

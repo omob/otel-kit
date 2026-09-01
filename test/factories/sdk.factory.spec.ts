@@ -66,6 +66,37 @@ describe("SdkFactory", () => {
     expect(config.spanLimits).toEqual({ attributeValueLengthLimit: 128, eventCountLimit: 8 });
   });
 
+  it("prefers an explicit sampler over the ratio", () => {
+    const sampler = { shouldSample: jest.fn(), toString: () => "CustomSampler" };
+    const config = build({ traces: { exporter: ExporterType.NONE, sampleRatio: 0.5, sampler: sampler as never } });
+
+    expect(config.sampler).toBe(sampler);
+  });
+
+  it("appends additional span processors alongside the exporter", () => {
+    const processor = { onStart: jest.fn(), onEnd: jest.fn(), shutdown: jest.fn(), forceFlush: jest.fn() };
+    const config = build({
+      traces: { exporter: ExporterType.CONSOLE, additionalProcessors: [processor as never] },
+    });
+
+    expect(config.spanProcessors).toHaveLength(2);
+    expect((config.spanProcessors as unknown[])[1]).toBe(processor);
+  });
+
+  it("keeps additional processors when no exporter is configured", () => {
+    const processor = { onStart: jest.fn(), onEnd: jest.fn(), shutdown: jest.fn(), forceFlush: jest.fn() };
+    const config = build({ traces: { exporter: ExporterType.NONE, additionalProcessors: [processor as never] } });
+
+    expect(config.spanProcessors).toEqual([processor]);
+  });
+
+  it("passes metric views through", () => {
+    const views = [{ instrumentName: "http.server.duration" }];
+    const config = build({ metrics: { exporter: ExporterType.NONE, views: views as never } });
+
+    expect(config.views).toBe(views);
+  });
+
   it("detects resources by default and lets the caller opt out", () => {
     expect(build().autoDetectResources).toBe(true);
     expect(build({ resourceDetection: false }).autoDetectResources).toBe(false);

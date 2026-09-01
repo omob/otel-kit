@@ -4,14 +4,14 @@ import {
   PeriodicExportingMetricReader,
   PushMetricExporter,
 } from "@opentelemetry/sdk-metrics";
-import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-proto";
 import { ExporterType } from "../enums/exporter-type.enum";
 import { TelemetryErrorCode } from "../enums/telemetry-error-code.enum";
 import TelemetryConfigError from "../errors/telemetry-config.error";
 import { IGcpMonitoringModule, IMetricConfig, IPrometheusModule } from "../telemetry.types";
+import { TelemetrySignal } from "../enums/telemetry-signal.enum";
 import { loadOptionalDependency } from "../utils/optional-dependency";
+import OtlpExporterFactory from "./otlp-exporter.factory";
 import { toGcpExporterOptions } from "../utils/gcp-credentials";
-import { toOtlpExporterOptions } from "../utils/otlp-options";
 
 const DEFAULT_EXPORT_INTERVAL_MILLIS = 60_000;
 const GCP_MONITORING_MODULE = "@google-cloud/opentelemetry-cloud-monitoring-exporter";
@@ -46,7 +46,7 @@ class MetricReaderFactory {
       case ExporterType.CONSOLE:
         return new ConsoleMetricExporter();
       case ExporterType.OTLP:
-        return new OTLPMetricExporter(toOtlpExporterOptions(config.otlp));
+        return OtlpExporterFactory.createExporter<PushMetricExporter>(TelemetrySignal.METRICS, config.otlp);
       case ExporterType.GCP:
         return new (loadOptionalDependency<IGcpMonitoringModule>(GCP_MONITORING_MODULE).MetricExporter)(
           toGcpExporterOptions(config.gcp)

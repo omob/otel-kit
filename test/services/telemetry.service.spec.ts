@@ -81,6 +81,31 @@ describe("Telemetry.start", () => {
   });
 });
 
+describe("Telemetry diagnostics", () => {
+  it("stays silent about its own internals unless a level is configured", () => {
+    const { diag } = require("@opentelemetry/api");
+    const setLogger = jest.spyOn(diag, "setLogger");
+
+    Telemetry.start(silentConfig);
+
+    expect(setLogger).not.toHaveBeenCalled();
+
+    setLogger.mockRestore();
+  });
+
+  it("routes otel's own failures to the supplied logger", () => {
+    const { diag, DiagLogLevel } = require("@opentelemetry/api");
+    const setLogger = jest.spyOn(diag, "setLogger");
+    const diagLogger = { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn(), verbose: jest.fn() };
+
+    Telemetry.start({ ...silentConfig, diagLogLevel: DiagLogLevel.ERROR, diagLogger });
+
+    expect(setLogger).toHaveBeenCalledWith(diagLogger, DiagLogLevel.ERROR);
+
+    setLogger.mockRestore();
+  });
+});
+
 describe("Telemetry shutdown handlers", () => {
   it("removes its signal listeners on shutdown so restarts do not leak them", async () => {
     const before = SIGNALS.map((signal) => process.listenerCount(signal));

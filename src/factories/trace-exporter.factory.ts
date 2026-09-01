@@ -1,12 +1,12 @@
 import { ConsoleSpanExporter, SpanExporter } from "@opentelemetry/sdk-trace-node";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { ExporterType } from "../enums/exporter-type.enum";
 import { TelemetryErrorCode } from "../enums/telemetry-error-code.enum";
 import TelemetryConfigError from "../errors/telemetry-config.error";
 import { IGcpTraceModule, ITraceConfig } from "../telemetry.types";
+import { TelemetrySignal } from "../enums/telemetry-signal.enum";
 import { loadOptionalDependency } from "../utils/optional-dependency";
+import OtlpExporterFactory from "./otlp-exporter.factory";
 import { toGcpExporterOptions } from "../utils/gcp-credentials";
-import { toOtlpExporterOptions } from "../utils/otlp-options";
 
 const GCP_TRACE_MODULE = "@google-cloud/opentelemetry-cloud-trace-exporter";
 
@@ -18,7 +18,7 @@ class TraceExporterFactory {
       case ExporterType.CONSOLE:
         return new ConsoleSpanExporter();
       case ExporterType.OTLP:
-        return new OTLPTraceExporter(toOtlpExporterOptions(config.otlp));
+        return OtlpExporterFactory.createExporter<SpanExporter>(TelemetrySignal.TRACES, config.otlp);
       case ExporterType.GCP:
         return TraceExporterFactory.createGcpExporter(config);
       default:

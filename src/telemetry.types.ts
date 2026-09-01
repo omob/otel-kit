@@ -1,9 +1,10 @@
-import type { SpanOptions, Tracer } from "@opentelemetry/api";
+import type { DiagLogLevel, DiagLogger, SpanOptions, Tracer } from "@opentelemetry/api";
 import type { Instrumentation } from "@opentelemetry/instrumentation";
-import type { MetricReader, PushMetricExporter } from "@opentelemetry/sdk-metrics";
-import type { SpanExporter } from "@opentelemetry/sdk-trace-node";
+import type { MetricReader, PushMetricExporter, ViewOptions } from "@opentelemetry/sdk-metrics";
+import type { Sampler, SpanExporter, SpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ExporterType } from "./enums/exporter-type.enum";
 import { InstrumentationName } from "./enums/instrumentation-name.enum";
+import { OtlpProtocol } from "./enums/otlp-protocol.enum";
 import { PropagatorType } from "./enums/propagator-type.enum";
 
 export type ResourceAttributeValue = string | number | boolean;
@@ -23,6 +24,7 @@ export interface IPrometheusModule {
 }
 
 export interface IOtlpOptions {
+  protocol?: OtlpProtocol;
   url?: string;
   headers?: Record<string, string>;
   timeoutMillis?: number;
@@ -56,6 +58,8 @@ export interface ISpanLimits {
 export interface ITraceConfig {
   exporter: ExporterType;
   sampleRatio?: number;
+  sampler?: Sampler;
+  additionalProcessors?: SpanProcessor[];
   batch?: IBatchOptions;
   otlp?: IOtlpOptions;
   gcp?: IGcpOptions;
@@ -64,6 +68,7 @@ export interface ITraceConfig {
 export interface IMetricConfig {
   exporter: ExporterType;
   exportIntervalMillis?: number;
+  views?: ViewOptions[];
   otlp?: IOtlpOptions;
   gcp?: IGcpOptions;
   prometheus?: IPrometheusOptions;
@@ -94,6 +99,8 @@ export interface ITelemetryConfig {
   logs?: ILogConfig;
   instrumentation?: IInstrumentationConfig;
   propagators?: PropagatorType[];
+  diagLogLevel?: DiagLogLevel;
+  diagLogger?: DiagLogger;
   handleShutdownSignals?: boolean;
   exitOnSignal?: boolean;
   shutdownTimeoutMillis?: number;
