@@ -23,6 +23,14 @@
     "logs"
   ],
   "license": "MIT",
+  "author": "Ayodeji Abodunrin",
+  "homepage": "https://github.com/omob/otel-kit#readme",
+  "bugs": {
+    "url": "https://github.com/omob/otel-kit/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18"
   },
