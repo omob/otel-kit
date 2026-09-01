@@ -12,7 +12,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["18.19", "20", "22"]
+        # jest segfaults on node 18 when a suite starts a real NodeSDK, because the sdk's module
+        # hooking and jest's sandbox disagree. node 18 is covered by the consumer job instead,
+        # which exercises the same code outside jest.
+        node: ["20", "22"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,11 +30,15 @@ jobs:
 
   consumers:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["18.19", "20", "22"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: ${{ matrix.node }}
           cache: npm
       - run: corepack enable
       - run: npm ci
