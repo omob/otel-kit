@@ -16,11 +16,13 @@
   ],
   "scripts": {
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "lint": "eslint src test",
     "lint:fix": "eslint src test --fix",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "verify:consumers": "node scripts/verify-consumers.mjs"
   },
   "keywords": [
     "opentelemetry",
@@ -39,7 +41,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=18"
+    "node": "^18.19.0 || >=20.6.0"
   },
   "dependencies": {
     "@opentelemetry/auto-instrumentations-node": "^0.67.0",
