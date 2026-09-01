@@ -11,10 +11,10 @@ If you're new to OpenTelemetry, this is everything you need to read the rest of 
 A **trace** is the story of one request, start to finish. A **span** is one timed step inside that story. Spans nest, so a trace is a tree:
 
 ```
-GET /login                    2 spans deep, 240ms   ← root span
-├─ user.lookup                              180ms
-│  └─ mongodb.find                          175ms   ← created for you
-└─ token.generate                            12ms
+GET /login              240ms   ← the trace starts here
+├─ user.lookup          180ms
+│  └─ mongodb.find      175ms   ← this one you get for free
+└─ token.generate        12ms
 ```
 
 Each span carries a name, a start and end time, a status (did it fail), and **attributes** — key/value labels like `user.id` or `http.method`. Every span in that tree shares one **trace ID**, which is how the tree gets reassembled at the other end.
