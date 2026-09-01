@@ -2,7 +2,23 @@
 
 OpenTelemetry setup for Node services, in one function call.
 
-You pick where traces, metrics and logs go. The package handles the SDK, the sampling, the shutdown flush, and the boilerplate around spans.
+```mermaid
+flowchart LR
+    R(["a request arrives"])
+
+    R --> M["METRICS<br/>counts and latencies, aggregated<br/>-<br/>is something wrong?"]
+    R --> T["TRACES<br/>one request, span by span<br/>-<br/>where is it wrong?"]
+    R --> L["LOGS<br/>the lines you wrote<br/>-<br/>why is it wrong?"]
+
+    M -- "a latency spike,<br/>at 14:02" --> T
+    T -- "trace_id stamped<br/>on every line" --> L
+
+    style T stroke-width:3px
+```
+
+Those are the three signals of observability, and they answer different questions. Metrics tell you *something* broke. Traces tell you *where* — which service, which query, which call. Logs tell you *why*, once you know where to look.
+
+Tracing is the one that connects the other two, and it is what this package is mostly for. You pick where traces, metrics and logs go; it handles the SDK, the sampling, the shutdown flush, and the boilerplate around spans — and stamps `trace_id` into your logs so the third column lines up with the second.
 
 ## The words, briefly
 
