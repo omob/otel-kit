@@ -8,6 +8,7 @@ Added
 
 Documentation
 
+- A Fastify `requestHook` example used a property that does not exist on the hook argument. Every code sample in the readme is now compiled against the built package in CI, so a sample that would not work cannot be merged.
 - Install instructions say which Google package each route needs. Both were listed together, implying you needed both for traces alone, and the OTLP route needs neither.
 - The quick start starts on the console exporter, which needs nothing running. It pointed at `http://localhost:4318` before, where most people have nothing listening — and a refused export is silent, so the first experience of the package was an empty backend.
 - A recipe for Google Cloud over OTLP, which is where Google is moving everyone: `@google-cloud/opentelemetry-cloud-trace-exporter` is deprecated and will be archived after 30 October 2026.

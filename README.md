@@ -311,7 +311,7 @@ instrumentation: {
       headersToSpanAttributes: { server: { requestHeaders: ["x-request-id"] } },
     },
     [InstrumentationName.PG]: { enhancedDatabaseReporting: true },
-    [InstrumentationName.FASTIFY]: { requestHook: (span, info) => span.setAttribute("plugin", info.pluginName) },
+    [InstrumentationName.FASTIFY]: { requestHook: (span, info) => span.setAttribute("route", info.request.routerPath) },
   },
 }
 ```
