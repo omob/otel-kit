@@ -48,6 +48,8 @@ Only `serviceName` is required. Everything else has a working default.
 | --- | --- | --- |
 | `instrumentation.disable` | `[]` | Instrumentations to switch off, e.g. `[InstrumentationName.DNS]`. |
 | `instrumentation.enable` | `[]` | Switch on one that's off by default. Beats `disable`. |
+| `instrumentation.only` | unset | Allow-list. When set, everything not in `only` or `enable` is off. Use it when you want a small, predictable set — `[InstrumentationName.HTTP, InstrumentationName.PG]` — instead of subtracting from the full auto set. |
+| `instrumentation.esmHook` | `true` | Registers the `import-in-the-middle` loader hook so ESM imports are instrumented (Node ≥ 20.6). Set `false` if the host already registers one, e.g. `--import @opentelemetry/auto-instrumentations-node/register`. |
 | `instrumentation.ignoreIncomingPaths` | `[]` | No spans for these paths. Put your health check here. |
 | `instrumentation.config` | `{}` | Options for individual instrumentations, passed to OpenTelemetry unchanged. |
 | `instrumentation.additional` | `[]` | Instrumentations outside the auto set — community ones, or your own. |

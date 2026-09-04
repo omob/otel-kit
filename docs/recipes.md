@@ -111,3 +111,9 @@ This route needs `google-auth-library` in your project, but no Google exporter p
 ```ts
 instrumentation: { disable: [InstrumentationName.DNS, InstrumentationName.NET] }
 ```
+
+Or start from nothing and name what you want. This is the better choice for anything that builds a dependency graph from your spans, because `dns.lookup` and `tcp.connect` show up there as calls to nowhere:
+
+```ts
+instrumentation: { only: [InstrumentationName.HTTP, InstrumentationName.UNDICI, InstrumentationName.PG, InstrumentationName.KAFKAJS] }
+```

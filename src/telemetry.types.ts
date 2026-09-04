@@ -86,6 +86,13 @@ export interface ILogConfig {
 export interface IInstrumentationConfig {
   disable?: InstrumentationName[];
   enable?: InstrumentationName[];
+  /** Allow-list: when set, every instrumentation not listed here (or in `enable`) is disabled. */
+  only?: InstrumentationName[];
+  /**
+   * Register import-in-the-middle so ESM imports are instrumented (Node >= 20.6). Defaults to true.
+   * Set false when the host already registers a loader hook (for example `--import @opentelemetry/auto-instrumentations-node/register`).
+   */
+  esmHook?: boolean;
   ignoreIncomingPaths?: string[];
   additional?: Instrumentation[];
   config?: InstrumentationConfigMap;

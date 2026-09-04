@@ -92,6 +92,14 @@ Load it before your app:
 { "scripts": { "start": "node --require ./dist/instrumentation.js dist/server.js" } }
 ```
 
+If your app is ESM (`"type": "module"`), use `--import` instead, and keep it on the command line rather than as an `import` at the top of your entry file:
+
+```json
+{ "scripts": { "start": "node --import ./dist/instrumentation.js dist/server.js" } }
+```
+
+ESM links every module in the graph before any of them runs, so an `import "./instrumentation.js"` inside `server.js` starts telemetry after Fastify, ioredis or kafkajs have already loaded — too late to patch them. `--import` runs first. Node 20.6 or later is needed for ESM instrumentation; on older runtimes only CommonJS requires are patched.
+
 That's it. HTTP, database and framework calls are traced automatically.
 
 Keep the ratio at 1 while you are setting things up. Sampling below 1 is a production concern, and turning it down before you have seen a single trace is the most common reason nothing appears in a backend. Dial it down later with the env var.

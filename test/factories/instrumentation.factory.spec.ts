@@ -114,3 +114,35 @@ describe("InstrumentationFactory", () => {
     expect(names).not.toContain(InstrumentationName.HTTP);
   });
 });
+
+describe("InstrumentationFactory only / esmHook", () => {
+  const enabledNames = (list: Instrumentation[]) =>
+    list.filter((i) => i.getConfig().enabled !== false).map((i) => i.instrumentationName);
+
+  it("only: disables everything not listed", () => {
+    const list = InstrumentationFactory.createInstrumentations({ only: [InstrumentationName.HTTP] });
+    const enabled = enabledNames(list);
+    expect(enabled).toContain(InstrumentationName.HTTP);
+    expect(enabled).not.toContain(InstrumentationName.DNS);
+    expect(enabled).not.toContain(InstrumentationName.NET);
+    expect(namesOf(list)).toEqual([InstrumentationName.HTTP]); // auto-instrumentations drops disabled entries entirely
+  });
+
+  it("only: entries in enable are also allowed", () => {
+    const enabled = enabledNames(
+      InstrumentationFactory.createInstrumentations({ only: [InstrumentationName.HTTP], enable: [InstrumentationName.PG] }),
+    );
+    expect(enabled).toEqual(expect.arrayContaining([InstrumentationName.HTTP, InstrumentationName.PG]));
+    expect(enabled).not.toContain(InstrumentationName.FASTIFY);
+  });
+
+  it("registers the ESM loader hook by default and can be turned off", () => {
+    const hook = require("../../src/utils/esm-hook");
+    const spy = jest.spyOn(hook, "registerEsmHook").mockReturnValue(true);
+    InstrumentationFactory.createInstrumentations({});
+    expect(spy).toHaveBeenCalledTimes(1);
+    InstrumentationFactory.createInstrumentations({ esmHook: false });
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+});
