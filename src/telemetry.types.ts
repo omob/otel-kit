@@ -95,7 +95,8 @@ export interface IInstrumentationConfig {
   esmHook?: boolean;
   ignoreIncomingPaths?: string[];
   additional?: Instrumentation[];
-  config?: InstrumentationConfigMap;
+  /** Per-instrumentation options keyed by package name. `InstrumentationName.FASTIFY` takes @fastify/otel options. */
+  config?: InstrumentationConfigMap & { [InstrumentationName.FASTIFY]?: Record<string, unknown> };
 }
 
 export interface ITelemetryConfig {

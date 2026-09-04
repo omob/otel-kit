@@ -104,13 +104,13 @@ That's it. HTTP, database and framework calls are traced automatically.
 
 Keep the ratio at 1 while you are setting things up. Sampling below 1 is a production concern, and turning it down before you have seen a single trace is the most common reason nothing appears in a backend. Dial it down later with the env var.
 
-**On Fastify, turn its instrumentation on.** It ships disabled, along with `fs`, and there is a wrinkle worth reading below:
+**On Fastify, install `@fastify/otel` and turn it on.** It ships disabled, along with `fs`:
 
 ```ts
 instrumentation: { enable: [InstrumentationName.FASTIFY], ignoreIncomingPaths: ["/health"] }
 ```
 
-Without it, every request is one bare `GET` span with no `http.route`, so nothing groups by route. Express, Koa, Hapi, NestJS, Mongo, Postgres, Redis, Kafka and outbound HTTP need no such step — they are on by default. The wrinkle: the bundled Fastify instrumentation is deprecated upstream, which is *why* it is disabled. It works, and the alternative is covered under [recipes](https://github.com/omob/otel-kit/blob/main/docs/recipes.md).
+Without it, every request is one bare `GET` span with no `http.route`, so nothing groups by route. Express, Koa, Hapi, NestJS, Mongo, Postgres, Redis, Kafka and outbound HTTP need no such step — they are on by default. Fastify is different because the OpenTelemetry-owned instrumentation was deprecated in favour of the Fastify team's own `@fastify/otel`, which this package loads when you enable it (`npm i @fastify/otel`).
 
 ### Why `--require`
 

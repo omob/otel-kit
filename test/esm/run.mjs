@@ -19,16 +19,22 @@ function run(env) {
     console.error(r.stderr);
     process.exit(r.status ?? 1);
   }
-  const line = r.stdout.trim().split("\n").pop();
-  return JSON.parse(line);
+  return JSON.parse(r.stdout.trim().split("\n").pop());
 }
 
-const withHook = run({});
-const withoutHook = run({ OTEL_KIT_TEST_ESM_HOOK: "false" });
+const on = run({});
+const off = run({ OTEL_KIT_TEST_ESM_HOOK: "false" });
 
-const ok = withHook.patched === true && withoutHook.patched === false;
-console.log(`esm: hook on -> patched=${withHook.patched}; hook off -> patched=${withoutHook.patched}`);
-if (!ok) {
-  console.error("esm: expected ioredis to be instrumented only when the loader hook is registered");
+const checks = [
+  ["ioredis patched with hook", on.ioredisPatched === true],
+  ["ioredis untouched without hook", off.ioredisPatched === false],
+  // @fastify/otel patches through Node's CJS loader (fastify itself is CommonJS), so it works either way
+  ["fastify sets http.route with hook", on.fastifyRoute === "/transfers/:id"],
+  ["fastify sets http.route without hook", off.fastifyRoute === "/transfers/:id"],
+];
+
+for (const [name, ok] of checks) console.log(`esm: ${ok ? "ok  " : "FAIL"} ${name}`);
+if (!checks.every(([, ok]) => ok)) {
+  console.error("with hook:", JSON.stringify(on), "\nwithout:", JSON.stringify(off));
   process.exit(1);
 }

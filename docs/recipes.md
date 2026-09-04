@@ -26,7 +26,7 @@ instrumentation: {
       headersToSpanAttributes: { server: { requestHeaders: ["x-request-id"] } },
     },
     [InstrumentationName.PG]: { enhancedDatabaseReporting: true },
-    [InstrumentationName.FASTIFY]: { requestHook: (span, info) => span.setAttribute("route", info.request.routerPath) },
+    [InstrumentationName.FASTIFY]: { ignorePaths: (opts) => opts.url.startsWith("/internal") },
   },
 }
 ```
@@ -47,7 +47,7 @@ Anything **not** in that set — a community instrumentation, or one you wrote �
 Three defaults worth knowing, all decided upstream rather than here:
 
 - `fs` is off by default. It emits a span per file read and drowns everything else.
-- `fastify` is off by default because `@opentelemetry/instrumentation-fastify` is **deprecated** in favour of [`@fastify/otel`](https://www.npmjs.com/package/@fastify/otel), maintained by the Fastify team. `enable: [InstrumentationName.FASTIFY]` still works and still produces route spans, but it is unmaintained; `@fastify/otel` registers as a Fastify plugin and reports through the same global API this package sets up.
+- `fastify` is off by default and is provided by [`@fastify/otel`](https://www.npmjs.com/package/@fastify/otel), maintained by the Fastify team — the old `@opentelemetry/instrumentation-fastify` was deprecated and dropped from the auto set upstream. Install `@fastify/otel` in your project and `enable: [InstrumentationName.FASTIFY]`; it sets `http.route` on the HTTP server span and adds a handler span per request. Options under `config[InstrumentationName.FASTIFY]` go to `@fastify/otel` unchanged.
 - database instrumentations replace query values with `?`. `enhancedDatabaseReporting: true` puts the real parameters in your spans — think about customer data before turning it on.
 
 **A gRPC collector** — OTLP defaults to HTTP/protobuf on port 4318. For a collector speaking gRPC on 4317:

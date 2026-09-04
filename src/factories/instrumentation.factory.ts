@@ -4,6 +4,9 @@ import type { IncomingMessage } from "http";
 import { InstrumentationName } from "../enums/instrumentation-name.enum";
 import { IInstrumentationConfig } from "../telemetry.types";
 import { registerEsmHook } from "../utils/esm-hook";
+import { loadOptionalDependency } from "../utils/optional-dependency";
+
+type FastifyOtelModule = { FastifyOtelInstrumentation: new (options?: Record<string, unknown>) => Instrumentation };
 
 class InstrumentationFactory {
   static createInstrumentations(config: IInstrumentationConfig = {}): Instrumentation[] {
@@ -39,7 +42,24 @@ class InstrumentationFactory {
       };
     }
 
-    return [...getNodeAutoInstrumentations(options as InstrumentationConfigMap), ...(config.additional ?? [])];
+    const { [InstrumentationName.FASTIFY]: fastify, ...autoOptions } = options;
+
+    return [
+      ...getNodeAutoInstrumentations(autoOptions as InstrumentationConfigMap),
+      ...InstrumentationFactory.createFastify(fastify as Record<string, unknown> | undefined),
+      ...(config.additional ?? []),
+    ];
+  }
+
+  // fastify is instrumented by @fastify/otel, which the host installs; it hooks the fastify module on load like the others
+  private static createFastify(options: Record<string, unknown> | undefined): Instrumentation[] {
+    if (!options || options.enabled !== true) {
+      return [];
+    }
+
+    const { FastifyOtelInstrumentation } = loadOptionalDependency<FastifyOtelModule>(InstrumentationName.FASTIFY);
+
+    return [new FastifyOtelInstrumentation({ registerOnInitialization: true, ...options })];
   }
 
   private static createIgnorePathHook(ignoredPaths: string[]) {
