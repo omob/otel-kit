@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+Added
+
+- `architecture`, an optional block for backends that draw a system diagram from telemetry. `component` (`type`, `layer`, `domain`, `owner`), `intendedDependencies` and `concurrency` become `archscope.*` resource attributes on every span; other backends ignore them.
+- `architecture.docTraceRatio`: a second, independent sampling decision. A chosen root trace is always recorded and marked in W3C `tracestate` (`as=d`), and every downstream service on the same trace records it too, whatever its own `sampleRatio`. The decision uses the leading bytes of the trace id where `TraceIdRatioBasedSampler` uses the trailing ones, so documentation traces are not a subset of production-sampled traces. Rejected outside 0–1 with `INVALID_DOC_TRACE_RATIO`.
+- `architecture.peers`: map outbound hosts (exact or `*.suffix`) to a `peer.service` name on client and producer spans, so several hostnames render as one component.
+- `withSpan` accepts `peer` and `component`, shorthands for `peer.service` and `archscope.component` attributes.
+- `DOC_TRACE_STATE_KEY` / `DOC_TRACE_STATE_VALUE` are exported for collectors and tests that look for the mark.
+
 ## 0.2.0
 
 Breaking

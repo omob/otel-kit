@@ -114,6 +114,42 @@ export interface IInstrumentationConfig {
   config?: InstrumentationConfigMap & { [InstrumentationName.FASTIFY]?: IFastifyInstrumentationConfig };
 }
 
+export type ArchitectureComponentType =
+  | "service" | "function" | "gateway" | "database" | "cache" | "queue" | "consumer" | "external" | "frontend" | "cron";
+
+export interface IArchitectureComponent {
+  type?: ArchitectureComponentType;
+  /** C4-style layer, e.g. "edge", "core", "data". */
+  layer?: string;
+  /** Business domain or bounded context, e.g. "payments". */
+  domain?: string;
+  /** Owning team. */
+  owner?: string;
+}
+
+/**
+ * Architectural metadata for tools that build a system diagram from telemetry. Everything here becomes
+ * resource attributes under the `archscope.*` namespace, which generic backends ignore.
+ */
+export interface IArchitectureConfig {
+  component?: IArchitectureComponent;
+  /** Dependencies this service is meant to have, by canonical name, e.g. ["postgresql:ledger", "kafka:transfers", "paystack"]. */
+  intendedDependencies?: string[];
+  /** Concurrency limits that bound this service, e.g. { http: 200, pgPool: 20 }. Emitted as archscope.concurrency.<key>. */
+  concurrency?: Record<string, number>;
+  /**
+   * Fraction (0-1) of root traces marked as documentation traces (`tracestate: as=d`), independently of
+   * `traces.sampleRatio`. Documentation traces are always recorded and the mark propagates downstream, so a
+   * topology built from them is unbiased even when production sampling is aggressive.
+   */
+  docTraceRatio?: number;
+  /**
+   * Map outbound hosts to a peer name, set as `peer.service` on client spans. Keys are exact hosts or `*.suffix`
+   * patterns; values are the name the peer should have in a dependency graph, e.g. { "api.paystack.co": "paystack" }.
+   */
+  peers?: Record<string, string>;
+}
+
 export interface ITelemetryConfig {
   serviceName: string;
   serviceVersion?: string;
@@ -126,6 +162,7 @@ export interface ITelemetryConfig {
   metrics?: IMetricConfig;
   logs?: ILogConfig;
   instrumentation?: IInstrumentationConfig;
+  architecture?: IArchitectureConfig;
   propagators?: PropagatorType[];
   diagLogLevel?: DiagLogLevel;
   diagLogger?: DiagLogger;
@@ -156,4 +193,8 @@ export interface IConnectionPoolHandle {
 export interface IWithSpanOptions extends SpanOptions {
   tracer?: Tracer;
   isError?: (error: unknown) => boolean;
+  /** Shorthand for attributes["peer.service"]; names the remote side of this span in a dependency graph. */
+  peer?: string;
+  /** Shorthand for attributes["archscope.component"]; the logical component this span belongs to. */
+  component?: string;
 }

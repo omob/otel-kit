@@ -26,6 +26,11 @@ const on = run({});
 const off = run({ OTEL_KIT_TEST_ESM_HOOK: "false" });
 
 const checks = [
+  ["doc-trace mark propagates over HTTP (tracestate header)", String(on.docMarkOnWire).includes("as=d")],
+  ["doc-trace mark present on the server span", on.docMarkOnServerSpan === "d"],
+  ["spans recorded although sampleRatio=0 (doc traces always record)", on.spanCount > 0],
+  ["peer map sets peer.service on the client span", on.peerOnClient === "loopback-peer"],
+  ["architecture block lands on the resource", on.archOnResource === "core"],
   ["ioredis patched with hook", on.ioredisPatched === true],
   ["ioredis untouched without hook", off.ioredisPatched === false],
   // @fastify/otel patches through Node's CJS loader (fastify itself is CommonJS), so it works either way

@@ -55,6 +55,16 @@ Only `serviceName` is required. Everything else has a working default.
 | `instrumentation.additional` | `[]` | Instrumentations outside the auto set — community ones, or your own. |
 | `propagators` | `tracecontext`, `baggage` | Trace context formats to read and write. |
 
+**Architecture** — for tools that draw a system diagram from telemetry. Everything here is optional and inert for backends that don't look for it.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `architecture.component` | unset | `{ type, layer, domain, owner }` describing this service. Emitted as resource attributes `archscope.component.type`, `archscope.layer`, `archscope.domain`, `archscope.owner`. `type` is one of `service`, `function`, `gateway`, `database`, `cache`, `queue`, `consumer`, `external`, `frontend`, `cron`. |
+| `architecture.intendedDependencies` | unset | Names of the components this service is meant to call, e.g. `["postgresql:ledger", "kafka:transfers", "paystack"]`. Lets a backend flag drift when the observed calls differ. Emitted as `archscope.intended_deps` (JSON). |
+| `architecture.concurrency` | unset | Limits that bound this service, e.g. `{ http: 200, pgPool: 20 }`. Emitted as `archscope.concurrency.<key>`; capacity models use them to predict where saturation starts. |
+| `architecture.docTraceRatio` | unset | Fraction (0–1) of root traces marked as *documentation traces*, independently of `traces.sampleRatio`. A marked trace is always recorded, and the mark (`tracestate: as=d`) is carried to every downstream service so they record it too. Keeps a topology complete under aggressive production sampling: `sampleRatio: 0.001, docTraceRatio: 0.02` costs almost nothing and still sees every dependency. |
+| `architecture.peers` | unset | Map outbound hosts to a stable name: `{ "api.paystack.co": "paystack", "*.interswitch.com": "interswitch" }`. Sets `peer.service` on client spans so three regional hostnames become one component in a graph. Keys are exact hosts or `*.suffix`. |
+
 **Lifecycle and diagnostics**
 
 | Option | Default | What it does |

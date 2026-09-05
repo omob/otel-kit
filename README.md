@@ -139,6 +139,42 @@ async function login({ email, password }) {
 
 Throw anywhere inside and the span is marked failed, the exception is recorded, and the error still propagates to your caller unchanged. Spans always end, on success or failure.
 
+Two shorthands help when a backend is drawing a dependency graph from your spans: `peer` names the remote side of a call that has no instrumentation of its own, and `component` names the logical part of your service the work belongs to.
+
+```ts
+import { SpanKind } from "@opentelemetry/api";
+
+declare const paystack: { charge(order: { id: string; amount: number }): Promise<unknown> };
+
+async function charge(order: { id: string; amount: number }) {
+  return withSpan("charge.card", { kind: SpanKind.CLIENT, peer: "paystack", component: "billing" }, () =>
+    paystack.charge(order)
+  );
+}
+```
+
+## Describing your architecture
+
+If you run something that builds a system diagram from traces, tell it what this service is. None of this changes what is traced; it adds resource attributes and a second, independent sampling decision.
+
+```ts
+Telemetry.start({
+  serviceName: "wallet-service",
+  traces: { exporter: ExporterType.OTLP, sampleRatio: 0.01 },
+  architecture: {
+    component: { type: "service", layer: "core", domain: "payments", owner: "team-wallet" },
+    intendedDependencies: ["postgresql:ledger", "kafka:transfers", "paystack"],
+    concurrency: { http: 200, pgPool: 20 },
+    docTraceRatio: 0.02,
+    peers: { "api.paystack.co": "paystack" },
+  },
+});
+```
+
+`docTraceRatio` is the useful one. Sampling 1% of traffic keeps costs down, but a rarely-used dependency can go unseen for days. Documentation traces are a separate 2% chosen from a different part of the trace id, always recorded, and marked in `tracestate` so every service downstream records them too. A backend can keep those at 100% and drop the rest, and the map stays complete.
+
+The attribute names live under `archscope.*`, the namespace of [ArchScope](https://github.com/omob/archscope); any other backend ignores them.
+
 Not every failure is a fault. A wrong password is an expected outcome, and marking it as a span error means your error rate tracks how often users mistype. Pass `isError` to say which throws actually count:
 
 ```ts

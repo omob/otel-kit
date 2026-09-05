@@ -8,9 +8,12 @@ import TelemetryConfigError from "./errors/telemetry-config.error";
 import { observeConnectionPool } from "./services/connection-pool.service";
 import { currentTraceId, getTracer, withSpan } from "./services/span.service";
 import Telemetry from "./services/telemetry.service";
+import { DOC_TRACE_STATE_KEY, DOC_TRACE_STATE_VALUE } from "./constants/doc-trace";
 
 export {
   currentTraceId,
+  DOC_TRACE_STATE_KEY,
+  DOC_TRACE_STATE_VALUE,
   ExporterType,
   getTracer,
   InstrumentationName,

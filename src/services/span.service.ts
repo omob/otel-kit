@@ -20,7 +20,15 @@ export function withSpan<T>(
 ): Promise<T> {
   const isHandlerOnly = typeof optionsOrHandler === "function";
   const handler = (isHandlerOnly ? optionsOrHandler : maybeHandler) as SpanHandler<T>;
-  const { tracer, isError, ...spanOptions } = isHandlerOnly ? ({} as IWithSpanOptions) : optionsOrHandler;
+  const { tracer, isError, peer, component, ...spanOptions } = isHandlerOnly ? ({} as IWithSpanOptions) : optionsOrHandler;
+
+  if (peer || component) {
+    spanOptions.attributes = {
+      ...(peer ? { "peer.service": peer } : {}),
+      ...(component ? { "archscope.component": component } : {}),
+      ...spanOptions.attributes,
+    };
+  }
 
   return (tracer ?? trace.getTracer(DEFAULT_TRACER_NAME)).startActiveSpan(name, spanOptions, async (span: Span) => {
     try {
