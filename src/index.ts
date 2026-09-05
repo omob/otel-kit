@@ -1,3 +1,5 @@
+import { ArchitectureComponentType } from "./enums/architecture-component-type.enum";
+import { DocTraceState } from "./enums/doc-trace-state.enum";
 import { ExporterType } from "./enums/exporter-type.enum";
 import { InstrumentationName } from "./enums/instrumentation-name.enum";
 import { OtlpProtocol } from "./enums/otlp-protocol.enum";
@@ -10,7 +12,9 @@ import { currentTraceId, getTracer, withSpan } from "./services/span.service";
 import Telemetry from "./services/telemetry.service";
 
 export {
+  ArchitectureComponentType,
   currentTraceId,
+  DocTraceState,
   ExporterType,
   getTracer,
   InstrumentationName,

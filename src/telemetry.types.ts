@@ -3,12 +3,13 @@ import type { InstrumentationConfigMap } from "@opentelemetry/auto-instrumentati
 import type { Instrumentation } from "@opentelemetry/instrumentation";
 import type { MetricReader, PushMetricExporter, ViewOptions } from "@opentelemetry/sdk-metrics";
 import type { Sampler, SpanExporter, SpanProcessor } from "@opentelemetry/sdk-trace-node";
+import { ArchitectureComponentType } from "./enums/architecture-component-type.enum";
 import { ExporterType } from "./enums/exporter-type.enum";
 import { InstrumentationName } from "./enums/instrumentation-name.enum";
 import { OtlpProtocol } from "./enums/otlp-protocol.enum";
 import { PropagatorType } from "./enums/propagator-type.enum";
 
-export type ResourceAttributeValue = string | number | boolean;
+export type ResourceAttributeValue = string | number | boolean | string[];
 
 export type OtlpHeaders = Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
 
@@ -114,6 +115,29 @@ export interface IInstrumentationConfig {
   config?: InstrumentationConfigMap & { [InstrumentationName.FASTIFY]?: IFastifyInstrumentationConfig };
 }
 
+export interface IArchitectureComponent {
+  type?: ArchitectureComponentType;
+  /** C4-style layer, e.g. "edge", "core", "data". */
+  layer?: string;
+  /** Business domain or bounded context, e.g. "payments". */
+  domain?: string;
+  /** Owning team. */
+  owner?: string;
+}
+
+/** Metadata for tools that draw a system diagram from telemetry; emitted under the `archscope.*` namespace. */
+export interface IArchitectureConfig {
+  component?: IArchitectureComponent;
+  /** Dependencies this service is meant to have, by canonical name, e.g. ["postgresql:ledger", "kafka:transfers", "paystack"]. */
+  intendedDependencies?: string[];
+  /** Concurrency limits that bound this service, e.g. { http: 200, pgPool: 20 }. Emitted as archscope.concurrency.<key>. */
+  concurrency?: Record<string, number>;
+  /** Fraction (0-1) of root traces always recorded and marked `tracestate: as=d`, independently of `traces.sampleRatio`. */
+  docTraceRatio?: number;
+  /** Outbound hosts (exact or `*.suffix`) mapped to the `peer.service` name a dependency graph should show. */
+  peers?: Record<string, string>;
+}
+
 export interface ITelemetryConfig {
   serviceName: string;
   serviceVersion?: string;
@@ -126,6 +150,7 @@ export interface ITelemetryConfig {
   metrics?: IMetricConfig;
   logs?: ILogConfig;
   instrumentation?: IInstrumentationConfig;
+  architecture?: IArchitectureConfig;
   propagators?: PropagatorType[];
   diagLogLevel?: DiagLogLevel;
   diagLogger?: DiagLogger;
@@ -156,4 +181,8 @@ export interface IConnectionPoolHandle {
 export interface IWithSpanOptions extends SpanOptions {
   tracer?: Tracer;
   isError?: (error: unknown) => boolean;
+  /** Shorthand for attributes["peer.service"]; names the remote side of this span in a dependency graph. */
+  peer?: string;
+  /** Shorthand for attributes["archscope.component.name"]; the logical component this span belongs to. */
+  component?: string;
 }

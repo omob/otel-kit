@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+Added
+
+- An `architecture` block for backends that draw a system diagram from telemetry. `component`, `intendedDependencies` and `concurrency` ride on the resource as `archscope.*` attributes, so every span from the process carries what the service is, what it is meant to call and what bounds it. Backends that do not look for the namespace ignore it.
+- `architecture.docTraceRatio`, a second sampling decision that runs beside `traces.sampleRatio`. A chosen root trace is always recorded and marked in W3C `tracestate` as `as=d`, and the mark travels to every service downstream, so they record it whatever their own rate. The choice folds the trace id exactly as `TraceIdRatioBasedSampler` does and takes from the top of that range where the ratio sampler takes from the bottom, so the two sets never overlap: a documentation trace is one you would not otherwise have kept. Sampling 1% of traffic hides a dependency that is called twice a day; a separate 2% does not. It wraps whatever sampler you configure, custom samplers included, and a value outside 0–1 is rejected with `INVALID_DOC_TRACE_RATIO`. An inbound mark counts only when the request is already sampled, so the header alone cannot make a caller's traffic record.
+- `architecture.peers`, mapping outbound hosts to a stable name on `peer.service`, exact or `*.suffix`. Three regional hostnames for one provider otherwise draw three nodes. Matching reads the host attribute on the span, which HTTP, undici, pg and ioredis set at span start and the messaging instrumentations never set.
+- `withSpan` takes `peer` and `component`, shorthands for the `peer.service` and `archscope.component.name` attributes, for calls that no instrumentation covers.
+- `ArchitectureComponentType` and `DocTraceState` are exported, the latter for collectors and tests that look for the documentation mark.
+
 ## 0.2.0
 
 Breaking

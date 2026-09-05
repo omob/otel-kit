@@ -6,6 +6,7 @@ import InstrumentationFactory from "./instrumentation.factory";
 import LogProcessorFactory from "./log-processor.factory";
 import MetricReaderFactory from "./metric-reader.factory";
 import AttributeSanitizerProcessor from "../processors/attribute-sanitizer.processor";
+import PeerResolutionProcessor from "../processors/peer-resolution.processor";
 import PropagatorFactory from "./propagator.factory";
 import ResourceFactory from "./resource.factory";
 import SamplerFactory from "./sampler.factory";
@@ -20,7 +21,9 @@ class SdkFactory {
     const metrics = config.metrics ?? DISABLED_SIGNAL;
     const traceExporter = TraceExporterFactory.createExporter(traces);
     const metricReader = MetricReaderFactory.createReader(metrics);
+    const peers = config.architecture?.peers;
     const spanProcessors: SpanProcessor[] = [
+      ...(peers && Object.keys(peers).length ? [new PeerResolutionProcessor(peers)] : []),
       ...(traces.sanitizeAttributes === false ? [] : [new AttributeSanitizerProcessor()]),
       ...(traceExporter ? [new BatchSpanProcessor(traceExporter, traces.batch)] : []),
       ...(traces.additionalProcessors ?? []),
@@ -30,7 +33,10 @@ class SdkFactory {
     return new NodeSDK({
       resource: ResourceFactory.createResource(config),
       autoDetectResources: config.resourceDetection ?? true,
-      sampler: traces.sampler ?? SamplerFactory.createSampler(traces.sampleRatio),
+      sampler: SamplerFactory.withDocTraces(
+        traces.sampler ?? SamplerFactory.createSampler(traces.sampleRatio),
+        config.architecture?.docTraceRatio
+      ),
       spanLimits: { attributeValueLengthLimit: DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT, ...config.spanLimits },
       spanProcessors,
       metricReaders: metricReader ? [metricReader] : [],

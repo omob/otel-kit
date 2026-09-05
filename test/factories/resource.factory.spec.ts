@@ -1,3 +1,4 @@
+import { ArchitectureComponentType } from "../../src/enums/architecture-component-type.enum";
 import ResourceFactory from "../../src/factories/resource.factory";
 
 describe("ResourceFactory", () => {
@@ -29,5 +30,38 @@ describe("ResourceFactory", () => {
     });
 
     expect(resource.attributes).toMatchObject({ team: "platform", "service.name": "kreela-api" });
+  });
+});
+
+describe("ResourceFactory architecture attributes", () => {
+  it("emits archscope.* resource attributes from the architecture block", () => {
+    const resource = ResourceFactory.createResource({
+      serviceName: "wallet",
+      architecture: {
+        component: {
+          type: ArchitectureComponentType.SERVICE,
+          layer: "core",
+          domain: "payments",
+          owner: "team-wallet",
+        },
+        intendedDependencies: ["postgresql:ledger", "kafka:transfers"],
+        concurrency: { http: 200, pgPool: 20, bogus: -1 },
+      },
+    });
+    expect(resource.attributes).toMatchObject({
+      "archscope.component.type": "service",
+      "archscope.layer": "core",
+      "archscope.domain": "payments",
+      "archscope.owner": "team-wallet",
+      "archscope.intended_dependencies": ["postgresql:ledger", "kafka:transfers"],
+      "archscope.concurrency.http": 200,
+      "archscope.concurrency.pgPool": 20,
+    });
+    expect(resource.attributes["archscope.concurrency.bogus"]).toBeUndefined();
+  });
+
+  it("emits nothing without an architecture block", () => {
+    const keys = Object.keys(ResourceFactory.createResource({ serviceName: "x" }).attributes);
+    expect(keys.some((k) => k.startsWith("archscope."))).toBe(false);
   });
 });

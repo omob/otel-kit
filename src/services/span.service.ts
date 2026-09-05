@@ -1,4 +1,5 @@
 import { context, Span, SpanStatusCode, trace, Tracer } from "@opentelemetry/api";
+import { ArchitectureAttribute } from "../enums/architecture-attribute.enum";
 import { IWithSpanOptions, SpanHandler } from "../telemetry.types";
 
 const DEFAULT_TRACER_NAME = "@omob/otel-kit";
@@ -20,7 +21,15 @@ export function withSpan<T>(
 ): Promise<T> {
   const isHandlerOnly = typeof optionsOrHandler === "function";
   const handler = (isHandlerOnly ? optionsOrHandler : maybeHandler) as SpanHandler<T>;
-  const { tracer, isError, ...spanOptions } = isHandlerOnly ? ({} as IWithSpanOptions) : optionsOrHandler;
+  const { tracer, isError, peer, component, ...spanOptions } = isHandlerOnly ? ({} as IWithSpanOptions) : optionsOrHandler;
+
+  if (peer || component) {
+    spanOptions.attributes = {
+      ...(peer ? { [ArchitectureAttribute.PEER_SERVICE]: peer } : {}),
+      ...(component ? { [ArchitectureAttribute.COMPONENT_NAME]: component } : {}),
+      ...spanOptions.attributes,
+    };
+  }
 
   return (tracer ?? trace.getTracer(DEFAULT_TRACER_NAME)).startActiveSpan(name, spanOptions, async (span: Span) => {
     try {
