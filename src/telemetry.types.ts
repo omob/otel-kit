@@ -120,6 +120,24 @@ export interface ITelemetryConfig {
   onStartupError?: (error: Error) => void;
 }
 
+export interface IConnectionPoolSnapshot {
+  max: number;
+  used: number;
+  idle: number;
+  pending: number;
+}
+
+export interface IConnectionPoolOptions {
+  name: string;
+  system?: string;
+  read: () => IConnectionPoolSnapshot;
+}
+
+export interface IConnectionPoolHandle {
+  recordWait: (millis: number) => void;
+  stop: () => void;
+}
+
 export interface IWithSpanOptions extends SpanOptions {
   tracer?: Tracer;
   isError?: (error: unknown) => boolean;

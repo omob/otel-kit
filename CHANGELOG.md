@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Added
+
+- `observeConnectionPool` reports a pool's limit, usage and queue depth under OpenTelemetry's standard `db.client.connection.*` metrics. The limit only exists inside the process, so no database exporter can report it — which makes pool saturation look like a slow database.
+
 ## 0.1.1
 
 Added

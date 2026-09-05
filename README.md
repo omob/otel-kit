@@ -200,6 +200,33 @@ You do not change how you log. If you use pino, winston or bunyan, the log instr
 
 Two things to weigh before turning logs on. Your log volume goes to two places, so you pay to store it twice unless you drop stdout collection. And any gap in your redaction now reaches a second system: check what your logger emits — response bodies and auth headers are the usual leaks — before pointing it at a backend.
 
+## Connection pools
+
+A pool's limit exists only inside your process — no database exporter can see `max: 5`. Register the pool and the package reports it under OpenTelemetry's standard names, so anything that speaks semantic conventions can use it:
+
+```ts
+import { observeConnectionPool } from "@omob/otel-kit";
+
+const pool = new Pool({ max: 20 });
+
+observeConnectionPool({
+  name: "biller",
+  system: "postgresql",
+  read: () => ({
+    max: pool.options.max,
+    used: pool.totalCount - pool.idleCount,
+    idle: pool.idleCount,
+    pending: pool.waitingCount,
+  }),
+});
+```
+
+Register the pool after `Telemetry.start()`. The metrics API resolves the meter provider at the moment you ask for it, so a pool registered first holds a no-op meter for the life of the process and reports nothing at all.
+
+You get `db.client.connection.max`, `db.client.connection.count` split by `used` and `idle`, and `db.client.connection.pending_requests`. Call the returned `recordWait(millis)` when you acquire a connection to also populate `db.client.connection.wait_time`.
+
+This is the number that tells you whether a slow query is slow, or just waiting: a pool pinned at its limit with requests queued means the bottleneck is your configuration, not the database. It needs the metrics block enabled, and works with any pool — Postgres, MySQL, Mongo, Redis — since you supply the reader.
+
 ## More
 
 - [Configuration](https://github.com/omob/otel-kit/blob/main/docs/configuration.md) — every option, shutdown behaviour, and what happens when a config is rejected
