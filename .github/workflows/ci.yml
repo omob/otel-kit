@@ -43,6 +43,8 @@ jobs:
       - run: corepack enable
       - run: npm ci
       - run: npm run verify:consumers
+      # jest cannot run on node 18, so this job is where the esm hook meets the lowest supported runtime
+      - run: npm run test:esm
 
   docs:
     runs-on: ubuntu-latest

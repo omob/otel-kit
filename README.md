@@ -92,17 +92,25 @@ Load it before your app:
 { "scripts": { "start": "node --require ./dist/instrumentation.js dist/server.js" } }
 ```
 
+If your app is ESM (`"type": "module"`), use `--import` instead, and keep it on the command line rather than as an `import` at the top of your entry file:
+
+```json
+{ "scripts": { "start": "node --import ./dist/instrumentation.js dist/server.js" } }
+```
+
+ESM links every module in the graph before any of them runs, so an `import "./instrumentation.js"` inside `server.js` starts telemetry after Fastify, ioredis or kafkajs have already loaded — too late to patch them. `--import` runs first. Node 18.19 or later is needed for ESM instrumentation; on older runtimes only CommonJS requires are patched.
+
 That's it. HTTP, database and framework calls are traced automatically.
 
 Keep the ratio at 1 while you are setting things up. Sampling below 1 is a production concern, and turning it down before you have seen a single trace is the most common reason nothing appears in a backend. Dial it down later with the env var.
 
-**On Fastify, turn its instrumentation on.** It ships disabled, along with `fs`, and there is a wrinkle worth reading below:
+**On Fastify, install `@fastify/otel` and turn it on.** It ships disabled, along with `fs`:
 
 ```ts
 instrumentation: { enable: [InstrumentationName.FASTIFY], ignoreIncomingPaths: ["/health"] }
 ```
 
-Without it, every request is one bare `GET` span with no `http.route`, so nothing groups by route. Express, Koa, Hapi, NestJS, Mongo, Postgres, Redis, Kafka and outbound HTTP need no such step — they are on by default. The wrinkle: the bundled Fastify instrumentation is deprecated upstream, which is *why* it is disabled. It works, and the alternative is covered under [recipes](https://github.com/omob/otel-kit/blob/main/docs/recipes.md).
+Without it, every request is one bare `GET` span with no `http.route`, so nothing groups by route. Express, Koa, Hapi, NestJS, Mongo, Postgres, Redis, Kafka and outbound HTTP need no such step — they are on by default. Fastify is different because the OpenTelemetry-owned instrumentation was deprecated in favour of the Fastify team's own `@fastify/otel`, which this package loads when you enable it (`npm i @fastify/otel`).
 
 ### Why `--require`
 
@@ -191,6 +199,33 @@ logs: { exporter: ExporterType.OTLP, otlp: { url: process.env.OTEL_EXPORTER_OTLP
 You do not change how you log. If you use pino, winston or bunyan, the log instrumentation bridges what you already write into OpenTelemetry, carrying the `trace_id` that ties each line to its span — so a trace links straight to the logs from that request.
 
 Two things to weigh before turning logs on. Your log volume goes to two places, so you pay to store it twice unless you drop stdout collection. And any gap in your redaction now reaches a second system: check what your logger emits — response bodies and auth headers are the usual leaks — before pointing it at a backend.
+
+## Connection pools
+
+A pool's limit exists only inside your process — no database exporter can see `max: 5`. Register the pool and the package reports it under OpenTelemetry's standard names, so anything that speaks semantic conventions can use it:
+
+```ts
+import { observeConnectionPool } from "@omob/otel-kit";
+
+const pool = new Pool({ max: 20 });
+
+observeConnectionPool({
+  name: "biller",
+  system: "postgresql",
+  read: () => ({
+    max: pool.options.max,
+    used: pool.totalCount - pool.idleCount,
+    idle: pool.idleCount,
+    pending: pool.waitingCount,
+  }),
+});
+```
+
+Register the pool after `Telemetry.start()`. The metrics API resolves the meter provider at the moment you ask for it, so a pool registered first holds a no-op meter for the life of the process and reports nothing at all.
+
+You get `db.client.connection.max`, `db.client.connection.count` split by `used` and `idle`, and `db.client.connection.pending_requests`. Call the returned `recordWait(millis)` when you acquire a connection to also populate `db.client.connection.wait_time`.
+
+This is the number that tells you whether a slow query is slow, or just waiting: a pool pinned at its limit with requests queued means the bottleneck is your configuration, not the database. It needs the metrics block enabled, and works with any pool — Postgres, MySQL, Mongo, Redis — since you supply the reader.
 
 ## More
 

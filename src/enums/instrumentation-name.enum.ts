@@ -9,7 +9,8 @@ export enum InstrumentationName {
   DATALOADER = "@opentelemetry/instrumentation-dataloader",
   DNS = "@opentelemetry/instrumentation-dns",
   EXPRESS = "@opentelemetry/instrumentation-express",
-  FASTIFY = "@opentelemetry/instrumentation-fastify",
+  /** Backed by @fastify/otel (the deprecated @opentelemetry/instrumentation-fastify left the auto set in 0.72). Off by default. */
+  FASTIFY = "@fastify/otel",
   FS = "@opentelemetry/instrumentation-fs",
   GENERIC_POOL = "@opentelemetry/instrumentation-generic-pool",
   GRAPHQL = "@opentelemetry/instrumentation-graphql",

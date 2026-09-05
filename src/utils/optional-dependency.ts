@@ -7,7 +7,7 @@ export function loadOptionalDependency<T>(moduleName: string): T {
   } catch {
     throw new TelemetryConfigError(
       TelemetryErrorCode.MISSING_OPTIONAL_DEPENDENCY,
-      `${moduleName} is not installed. Add it to the host project to use this exporter.`
+      `${moduleName} is not installed. Add it to the host project.`
     );
   }
 

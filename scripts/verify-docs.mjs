@@ -32,7 +32,8 @@ declare class RedactingSpanProcessor { onStart(): void; onEnd(): void; forceFlus
 declare const findUser: (email: string) => Promise<{ id: string }>;
 declare const generateToken: (user: unknown) => Promise<string>;
 declare const billerId: string;
-void [app, logger, url, fastify, handler, AppError, RedactingSpanProcessor, findUser, generateToken, billerId];
+declare class Pool { constructor(o: unknown); options: { max: number }; totalCount: number; idleCount: number; waitingCount: number }
+void [app, logger, url, fastify, handler, AppError, RedactingSpanProcessor, findUser, generateToken, billerId, Pool];
 `;
 
 const OTEL_IMPORTS = `
@@ -48,7 +49,7 @@ const isScriptTag = (code) => code.trim().startsWith("{") && code.includes('"scr
 // the docs use `{ ..., x }` to mean "your existing config, plus x"
 const expandEllipsis = (code) => code.replace(/\{\s*\.\.\.\s*,/g, '{ serviceName: "sample",');
 
-const OUR_NAMES = ["Telemetry", "withSpan", "getTracer", "currentTraceId", "ExporterType", "InstrumentationName", "OtlpProtocol", "PropagatorType"];
+const OUR_NAMES = ["Telemetry", "withSpan", "getTracer", "currentTraceId", "observeConnectionPool", "ExporterType", "InstrumentationName", "OtlpProtocol", "PropagatorType"];
 
 // a sample may import only the symbol it is introducing, assuming the reader already imported the rest
 const missingImports = (code) => {
