@@ -15,7 +15,7 @@ jobs:
         # jest segfaults on node 18 when a suite starts a real NodeSDK, because the sdk's module
         # hooking and jest's sandbox disagree. node 18 is covered by the consumer job instead,
         # which exercises the same code outside jest.
-        node: ["20", "22"]
+        node: ["20", "22", "24"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["18.19", "20", "22"]
+        node: ["18.19", "20", "22", "24"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -56,3 +56,24 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify:docs
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, consumers, docs]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+      - run: npm ci
+      # a tag that disagrees with package.json publishes a version nobody can find from the repo
+      - run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
