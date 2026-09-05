@@ -23,7 +23,7 @@ describe("PeerResolutionProcessor", () => {
   });
 
   it("falls back to legacy host attributes", () => {
-    const s = span(SpanKind.PRODUCER, { "net.peer.name": "api.paystack.co" });
+    const s = span(SpanKind.CLIENT, { "net.peer.name": "api.paystack.co" });
     processor.onStart(s);
     expect(s.attributes["peer.service"]).toBe("paystack");
   });
@@ -36,5 +36,35 @@ describe("PeerResolutionProcessor", () => {
     expect(server.attributes["peer.service"]).toBeUndefined();
     expect(unknown.attributes["peer.service"]).toBeUndefined();
     expect(named.attributes["peer.service"]).toBe("custom");
+  });
+
+  it("keeps an ipv6 literal intact while still stripping a port", () => {
+    const v6 = new PeerResolutionProcessor({ "2001:db8::1": "v6-cache" });
+    const plain = span(SpanKind.CLIENT, { "server.address": "2001:db8::1" });
+    const bracketed = span(SpanKind.CLIENT, { "server.address": "[2001:db8::1]:6379" });
+
+    v6.onStart(plain);
+    v6.onStart(bracketed);
+
+    expect(plain.attributes["peer.service"]).toBe("v6-cache");
+    expect(bracketed.attributes["peer.service"]).toBe("v6-cache");
+  });
+
+  it("prefers the longest matching suffix over config order", () => {
+    const nested = new PeerResolutionProcessor({ "*.example.com": "broad", "*.eu.example.com": "regional" });
+    const s = span(SpanKind.CLIENT, { "server.address": "api.eu.example.com" });
+
+    nested.onStart(s);
+
+    expect(s.attributes["peer.service"]).toBe("regional");
+  });
+
+  it("ignores a pattern that is neither an exact host nor a *.suffix", () => {
+    const bad = new PeerResolutionProcessor({ "api.*.com": "nope" });
+    const s = span(SpanKind.CLIENT, { "server.address": "api.paystack.com" });
+
+    bad.onStart(s);
+
+    expect(s.attributes["peer.service"]).toBeUndefined();
   });
 });

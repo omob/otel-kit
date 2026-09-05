@@ -1,3 +1,4 @@
+import { ArchitectureComponentType } from "../../src/enums/architecture-component-type.enum";
 import ResourceFactory from "../../src/factories/resource.factory";
 
 describe("ResourceFactory", () => {
@@ -37,7 +38,12 @@ describe("ResourceFactory architecture attributes", () => {
     const resource = ResourceFactory.createResource({
       serviceName: "wallet",
       architecture: {
-        component: { type: "service", layer: "core", domain: "payments", owner: "team-wallet" },
+        component: {
+          type: ArchitectureComponentType.SERVICE,
+          layer: "core",
+          domain: "payments",
+          owner: "team-wallet",
+        },
         intendedDependencies: ["postgresql:ledger", "kafka:transfers"],
         concurrency: { http: 200, pgPool: 20, bogus: -1 },
       },
@@ -47,7 +53,7 @@ describe("ResourceFactory architecture attributes", () => {
       "archscope.layer": "core",
       "archscope.domain": "payments",
       "archscope.owner": "team-wallet",
-      "archscope.intended_deps": JSON.stringify(["postgresql:ledger", "kafka:transfers"]),
+      "archscope.intended_dependencies": ["postgresql:ledger", "kafka:transfers"],
       "archscope.concurrency.http": 200,
       "archscope.concurrency.pgPool": 20,
     });

@@ -162,7 +162,7 @@ Telemetry.start({
   serviceName: "wallet-service",
   traces: { exporter: ExporterType.OTLP, sampleRatio: 0.01 },
   architecture: {
-    component: { type: "service", layer: "core", domain: "payments", owner: "team-wallet" },
+    component: { type: ArchitectureComponentType.SERVICE, layer: "core", domain: "payments", owner: "team-wallet" },
     intendedDependencies: ["postgresql:ledger", "kafka:transfers", "paystack"],
     concurrency: { http: 200, pgPool: 20 },
     docTraceRatio: 0.02,
@@ -171,7 +171,7 @@ Telemetry.start({
 });
 ```
 
-`docTraceRatio` is the useful one. Sampling 1% of traffic keeps costs down, but a rarely-used dependency can go unseen for days. Documentation traces are a separate 2% chosen from a different part of the trace id, always recorded, and marked in `tracestate` so every service downstream records them too. A backend can keep those at 100% and drop the rest, and the map stays complete.
+`docTraceRatio` is the useful one. Sampling 1% of traffic keeps costs down, but a rarely-used dependency can go unseen for days. Documentation traces are a separate 2%, taken from the end of the range your sample ratio never reaches, always recorded, and marked in `tracestate` so every service downstream records them too. A backend can keep those at 100% and drop the rest, and the map stays complete.
 
 The attribute names live under `archscope.*`, the namespace of [ArchScope](https://github.com/omob/archscope); any other backend ignores them.
 

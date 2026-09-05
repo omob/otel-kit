@@ -19,7 +19,6 @@ class SamplerFactory {
     return new ParentBasedSampler({ root: new TraceIdRatioBasedSampler(sampleRatio) });
   }
 
-  /** Wraps `sampler` so a `docTraceRatio` fraction of root traces is always recorded and marked in tracestate. */
   static withDocTraces(sampler: Sampler, docTraceRatio?: number): Sampler {
     if (docTraceRatio === undefined) {
       return sampler;

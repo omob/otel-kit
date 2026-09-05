@@ -37,9 +37,9 @@ void [app, logger, url, fastify, handler, AppError, RedactingSpanProcessor, find
 `;
 
 const OTEL_IMPORTS = `
-import { Telemetry, withSpan, getTracer, currentTraceId, ExporterType, InstrumentationName, OtlpProtocol, PropagatorType } from "@omob/otel-kit";
+import { Telemetry, withSpan, getTracer, currentTraceId, ArchitectureComponentType, ExporterType, InstrumentationName, OtlpProtocol, PropagatorType } from "@omob/otel-kit";
 import { DiagLogLevel } from "@opentelemetry/api";
-void [Telemetry, withSpan, getTracer, currentTraceId, ExporterType, InstrumentationName, OtlpProtocol, PropagatorType, DiagLogLevel];
+void [Telemetry, withSpan, getTracer, currentTraceId, ArchitectureComponentType, ExporterType, InstrumentationName, OtlpProtocol, PropagatorType, DiagLogLevel];
 `;
 
 const isFragment = (code) => /^\s*(traces|metrics|logs|instrumentation|propagators)\s*:/.test(code);
@@ -49,7 +49,7 @@ const isScriptTag = (code) => code.trim().startsWith("{") && code.includes('"scr
 // the docs use `{ ..., x }` to mean "your existing config, plus x"
 const expandEllipsis = (code) => code.replace(/\{\s*\.\.\.\s*,/g, '{ serviceName: "sample",');
 
-const OUR_NAMES = ["Telemetry", "withSpan", "getTracer", "currentTraceId", "observeConnectionPool", "ExporterType", "InstrumentationName", "OtlpProtocol", "PropagatorType"];
+const OUR_NAMES = ["Telemetry", "withSpan", "getTracer", "currentTraceId", "observeConnectionPool", "ArchitectureComponentType", "DocTraceState", "ExporterType", "InstrumentationName", "OtlpProtocol", "PropagatorType"];
 
 // a sample may import only the symbol it is introducing, assuming the reader already imported the rest
 const missingImports = (code) => {

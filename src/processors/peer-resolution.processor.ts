@@ -1,16 +1,12 @@
-import { SpanKind } from "@opentelemetry/api";
+import { diag, SpanKind } from "@opentelemetry/api";
 import type { Span, SpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVER_ADDRESS } from "@opentelemetry/semantic-conventions";
+import { ArchitectureAttribute } from "../enums/architecture-attribute.enum";
 
-const ATTR_PEER_SERVICE = "peer.service";
 // pre-stable http/net conventions still emitted by some instrumentations
 const LEGACY_HOST_ATTRS = ["net.peer.name", "http.host"];
 
-/**
- * Gives outbound calls a stable peer name. A dependency graph keys external nodes on `peer.service` when
- * present and falls back to the raw host, so mapping "api.paystack.co" to "paystack" turns three regional
- * hostnames into one component. Runs on span start, which is when http and undici set the host.
- */
+// a graph keys external nodes on peer.service when it is there, so three regional hostnames collapse to one node
 class PeerResolutionProcessor implements SpanProcessor {
   private readonly exact = new Map<string, string>();
   private readonly suffixes: Array<[string, string]> = [];
@@ -19,10 +15,15 @@ class PeerResolutionProcessor implements SpanProcessor {
     for (const [host, name] of Object.entries(peers)) {
       if (host.startsWith("*.")) {
         this.suffixes.push([host.slice(1).toLowerCase(), name]);
+      } else if (host.includes("*")) {
+        diag.warn(`@omob/otel-kit ignores the peer pattern "${host}"; only an exact host or a *.suffix matches`);
       } else {
         this.exact.set(host.toLowerCase(), name);
       }
     }
+
+    // a longer suffix is the more specific match, and object key order should not decide which name a host gets
+    this.suffixes.sort(([a], [b]) => b.length - a.length);
   }
 
   onStart(span: Span): void {
@@ -30,7 +31,7 @@ class PeerResolutionProcessor implements SpanProcessor {
       return;
     }
 
-    if (span.attributes[ATTR_PEER_SERVICE] !== undefined) {
+    if (span.attributes[ArchitectureAttribute.PEER_SERVICE] !== undefined) {
       return;
     }
 
@@ -38,7 +39,7 @@ class PeerResolutionProcessor implements SpanProcessor {
     const name = host && this.resolve(host);
 
     if (name) {
-      span.setAttribute(ATTR_PEER_SERVICE, name);
+      span.setAttribute(ArchitectureAttribute.PEER_SERVICE, name);
     }
   }
 
@@ -54,10 +55,23 @@ class PeerResolutionProcessor implements SpanProcessor {
     return Promise.resolve();
   }
 
-  resolve(host: string): string | undefined {
+  private resolve(host: string): string | undefined {
     const lower = host.toLowerCase();
 
     return this.exact.get(lower) ?? this.suffixes.find(([suffix]) => lower.endsWith(suffix))?.[1];
+  }
+
+  // an ipv6 literal is all colons, so only a lone trailing :port is one
+  private static withoutPort(host: string): string {
+    const closing = host.indexOf("]");
+
+    if (host.startsWith("[")) {
+      return closing === -1 ? host : host.slice(1, closing);
+    }
+
+    const parts = host.split(":");
+
+    return parts.length === 2 ? parts[0] : host;
   }
 
   private hostOf(span: Span): string | undefined {
@@ -65,7 +79,7 @@ class PeerResolutionProcessor implements SpanProcessor {
       const value = span.attributes[key];
 
       if (typeof value === "string" && value) {
-        return value.split(":")[0];
+        return PeerResolutionProcessor.withoutPort(value);
       }
     }
 

@@ -1,4 +1,5 @@
 import { context, Span, SpanStatusCode, trace, Tracer } from "@opentelemetry/api";
+import { ArchitectureAttribute } from "../enums/architecture-attribute.enum";
 import { IWithSpanOptions, SpanHandler } from "../telemetry.types";
 
 const DEFAULT_TRACER_NAME = "@omob/otel-kit";
@@ -24,8 +25,8 @@ export function withSpan<T>(
 
   if (peer || component) {
     spanOptions.attributes = {
-      ...(peer ? { "peer.service": peer } : {}),
-      ...(component ? { "archscope.component": component } : {}),
+      ...(peer ? { [ArchitectureAttribute.PEER_SERVICE]: peer } : {}),
+      ...(component ? { [ArchitectureAttribute.COMPONENT_NAME]: component } : {}),
       ...spanOptions.attributes,
     };
   }

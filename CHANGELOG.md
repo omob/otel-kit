@@ -4,11 +4,11 @@
 
 Added
 
-- `architecture`, an optional block for backends that draw a system diagram from telemetry. `component` (`type`, `layer`, `domain`, `owner`), `intendedDependencies` and `concurrency` become `archscope.*` resource attributes on every span; other backends ignore them.
-- `architecture.docTraceRatio`: a second, independent sampling decision. A chosen root trace is always recorded and marked in W3C `tracestate` (`as=d`), and every downstream service on the same trace records it too, whatever its own `sampleRatio`. The decision uses the leading bytes of the trace id where `TraceIdRatioBasedSampler` uses the trailing ones, so documentation traces are not a subset of production-sampled traces. Rejected outside 0–1 with `INVALID_DOC_TRACE_RATIO`.
-- `architecture.peers`: map outbound hosts (exact or `*.suffix`) to a `peer.service` name on client and producer spans, so several hostnames render as one component.
-- `withSpan` accepts `peer` and `component`, shorthands for `peer.service` and `archscope.component` attributes.
-- `DOC_TRACE_STATE_KEY` / `DOC_TRACE_STATE_VALUE` are exported for collectors and tests that look for the mark.
+- An `architecture` block for backends that draw a system diagram from telemetry. `component`, `intendedDependencies` and `concurrency` ride on the resource as `archscope.*` attributes, so every span from the process carries what the service is, what it is meant to call and what bounds it. Backends that do not look for the namespace ignore it.
+- `architecture.docTraceRatio`, a second sampling decision that runs beside `traces.sampleRatio`. A chosen root trace is always recorded and marked in W3C `tracestate` as `as=d`, and the mark travels to every service downstream, so they record it whatever their own rate. The choice folds the trace id exactly as `TraceIdRatioBasedSampler` does and takes from the top of that range where the ratio sampler takes from the bottom, so the two sets never overlap: a documentation trace is one you would not otherwise have kept. Sampling 1% of traffic hides a dependency that is called twice a day; a separate 2% does not. It wraps whatever sampler you configure, custom samplers included, and a value outside 0–1 is rejected with `INVALID_DOC_TRACE_RATIO`. An inbound mark counts only when the request is already sampled, so the header alone cannot make a caller's traffic record.
+- `architecture.peers`, mapping outbound hosts to a stable name on `peer.service`, exact or `*.suffix`. Three regional hostnames for one provider otherwise draw three nodes. Matching reads the host attribute on the span, which HTTP, undici, pg and ioredis set at span start and the messaging instrumentations never set.
+- `withSpan` takes `peer` and `component`, shorthands for the `peer.service` and `archscope.component.name` attributes, for calls that no instrumentation covers.
+- `ArchitectureComponentType` and `DocTraceState` are exported, the latter for collectors and tests that look for the documentation mark.
 
 ## 0.2.0
 

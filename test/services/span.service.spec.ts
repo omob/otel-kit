@@ -126,6 +126,6 @@ describe("withSpan shorthands", () => {
   it("maps peer and component to attributes without clobbering explicit ones", async () => {
     await withSpan("shorthand", { peer: "paystack", component: "charge", attributes: { custom: 1 } }, async () => "ok");
     const span = exporter.getFinishedSpans().find((s) => s.name === "shorthand") as ReadableSpan;
-    expect(span.attributes).toMatchObject({ "peer.service": "paystack", "archscope.component": "charge", custom: 1 });
+    expect(span.attributes).toMatchObject({ "peer.service": "paystack", "archscope.component.name": "charge", custom: 1 });
   });
 });

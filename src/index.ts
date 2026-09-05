@@ -1,3 +1,5 @@
+import { ArchitectureComponentType } from "./enums/architecture-component-type.enum";
+import { DocTraceState } from "./enums/doc-trace-state.enum";
 import { ExporterType } from "./enums/exporter-type.enum";
 import { InstrumentationName } from "./enums/instrumentation-name.enum";
 import { OtlpProtocol } from "./enums/otlp-protocol.enum";
@@ -8,12 +10,11 @@ import TelemetryConfigError from "./errors/telemetry-config.error";
 import { observeConnectionPool } from "./services/connection-pool.service";
 import { currentTraceId, getTracer, withSpan } from "./services/span.service";
 import Telemetry from "./services/telemetry.service";
-import { DOC_TRACE_STATE_KEY, DOC_TRACE_STATE_VALUE } from "./constants/doc-trace";
 
 export {
+  ArchitectureComponentType,
   currentTraceId,
-  DOC_TRACE_STATE_KEY,
-  DOC_TRACE_STATE_VALUE,
+  DocTraceState,
   ExporterType,
   getTracer,
   InstrumentationName,
