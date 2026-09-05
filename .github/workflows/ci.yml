@@ -15,7 +15,7 @@ jobs:
         # jest segfaults on node 18 when a suite starts a real NodeSDK, because the sdk's module
         # hooking and jest's sandbox disagree. node 18 is covered by the consumer job instead,
         # which exercises the same code outside jest.
-        node: ["20", "22"]
+        node: ["20", "22", "24"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["18.19", "20", "22"]
+        node: ["18.19", "20", "22", "24"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
