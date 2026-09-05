@@ -1,6 +1,6 @@
 # Troubleshooting
 
-**Some libraries produce no spans, but `http` and `pg` do.** Your app is almost certainly ESM (`"type": "module"`). Two things must both be true: telemetry is started with `node --import ./dist/instrumentation.js …` (not `--require`, and not an `import` inside your entry file — see the README), and you are on Node 20.6 or later. Check with `OTEL_LOG_LEVEL=debug`: patched modules log `Applying instrumentation patch for module on require hook` (CommonJS) or `… on import hook` (ESM). If you only ever see `dns`, `net`, `http` and `pg`, the loader hook is not active.
+**Some libraries produce no spans, but `http` and `pg` do.** Your app is almost certainly ESM (`"type": "module"`). Two things must both be true: telemetry is started with `node --import ./dist/instrumentation.js …` (not `--require`, and not an `import` inside your entry file — see the README), and you are on Node 18.19 or later. Check with `OTEL_LOG_LEVEL=debug`: patched modules log `Applying instrumentation patch for module on require hook` (CommonJS) or `… on import hook` (ESM). If you only ever see `dns`, `net`, `http` and `pg`, the loader hook is not active.
 
 A rejected configuration produces a `TelemetryConfigError`. It is **reported, not thrown** — telemetry switches itself off and your service still boots. `onStartupError` decides where that goes; by default it is logged.
 

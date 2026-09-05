@@ -1,4 +1,4 @@
-import type { DiagLogLevel, DiagLogger, SpanOptions, Tracer } from "@opentelemetry/api";
+import type { DiagLogLevel, DiagLogger, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import type { InstrumentationConfigMap } from "@opentelemetry/auto-instrumentations-node";
 import type { Instrumentation } from "@opentelemetry/instrumentation";
 import type { MetricReader, PushMetricExporter, ViewOptions } from "@opentelemetry/sdk-metrics";
@@ -24,6 +24,21 @@ export interface IGcpMonitoringModule {
 
 export interface IPrometheusModule {
   PrometheusExporter: new (options: object) => MetricReader;
+}
+
+/** Mirrors `FastifyOtelInstrumentationOpts`, declared structurally so `dist` never types against the optional peer. */
+export interface IFastifyInstrumentationConfig {
+  enabled?: boolean;
+  registerOnInitialization?: boolean;
+  ignorePaths?: string | ((routeOptions: { url: string; method: string }) => boolean);
+  requestHook?: (span: Span, request: unknown) => void;
+  lifecycleHook?: (span: Span, info: { hookName: string; request: unknown; handler?: string }) => void;
+  recordExceptions?: boolean;
+  instrumentHooks?: boolean | string[];
+}
+
+export interface IFastifyOtelModule {
+  FastifyOtelInstrumentation: new (options?: IFastifyInstrumentationConfig) => Instrumentation;
 }
 
 export interface IOtlpOptions {
@@ -89,14 +104,14 @@ export interface IInstrumentationConfig {
   /** Allow-list: when set, every instrumentation not listed here (or in `enable`) is disabled. */
   only?: InstrumentationName[];
   /**
-   * Register import-in-the-middle so ESM imports are instrumented (Node >= 20.6). Defaults to true.
+   * Register import-in-the-middle so ESM imports are instrumented (Node >= 18.19). Defaults to true.
    * Set false when the host already registers a loader hook (for example `--import @opentelemetry/auto-instrumentations-node/register`).
    */
   esmHook?: boolean;
   ignoreIncomingPaths?: string[];
   additional?: Instrumentation[];
   /** Per-instrumentation options keyed by package name. `InstrumentationName.FASTIFY` takes @fastify/otel options. */
-  config?: InstrumentationConfigMap & { [InstrumentationName.FASTIFY]?: Record<string, unknown> };
+  config?: InstrumentationConfigMap & { [InstrumentationName.FASTIFY]?: IFastifyInstrumentationConfig };
 }
 
 export interface ITelemetryConfig {

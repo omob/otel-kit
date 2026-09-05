@@ -27,6 +27,24 @@ describe("AttributeSanitizerProcessor", () => {
     expect(exportedAttributes()).toEqual({ "http.status_code": 200 });
   });
 
+  it("strips the query string a fastify span leaves on url.path", () => {
+    const span = provider.getTracer("test").startSpan("probe");
+
+    span.setAttribute("url.path", "/reset-password?token=secret&id=42");
+    span.end();
+
+    expect(exportedAttributes()["url.path"]).toBe("/reset-password");
+  });
+
+  it("leaves a url.path that carries no query string alone", () => {
+    const span = provider.getTracer("test").startSpan("probe");
+
+    span.setAttribute("url.path", "/transfers/42");
+    span.end();
+
+    expect(exportedAttributes()["url.path"]).toBe("/transfers/42");
+  });
+
   it("keeps every finite value untouched", () => {
     const span = provider.getTracer("test").startSpan("probe");
 

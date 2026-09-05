@@ -5,8 +5,8 @@ import { dirname, join } from "node:path";
 const dir = dirname(fileURLToPath(import.meta.url));
 const [major, minor] = process.versions.node.split(".").map(Number);
 
-if (major < 20 || (major === 20 && minor < 6)) {
-  console.log(`esm: skipped on node ${process.versions.node} (module.register needs >= 20.6)`);
+if (major < 18 || (major === 18 && minor < 19)) {
+  console.log(`esm: skipped on node ${process.versions.node} (module.register needs >= 18.19)`);
   process.exit(0);
 }
 
@@ -31,6 +31,7 @@ const checks = [
   // @fastify/otel patches through Node's CJS loader (fastify itself is CommonJS), so it works either way
   ["fastify sets http.route with hook", on.fastifyRoute === "/transfers/:id"],
   ["fastify sets http.route without hook", off.fastifyRoute === "/transfers/:id"],
+  ["url.path keeps no query string", on.queryFreePaths === true],
 ];
 
 for (const [name, ok] of checks) console.log(`esm: ${ok ? "ok  " : "FAIL"} ${name}`);

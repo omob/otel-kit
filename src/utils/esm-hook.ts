@@ -6,14 +6,7 @@ const HOOK_SPECIFIER = "import-in-the-middle/hook.mjs";
 const REGISTERED = Symbol.for("@omob/otel-kit.esmHookRegistered");
 const state = globalThis as unknown as Record<symbol, boolean | undefined>;
 
-/**
- * Instrumentations patch CommonJS through require-in-the-middle, which the ESM loader never consults.
- * ESM imports are only seen once import-in-the-middle's loader hook is registered, so this installs it
- * before any instrumentation is created. Node < 20.6 has no module.register; those runtimes keep CJS-only
- * behaviour and the caller can tell from the return value.
- *
- * Returns true when the hook is active (registered now or earlier by this module), false when unavailable.
- */
+// the ESM loader never consults require-in-the-middle, so ESM imports stay unpatched until this hook is registered
 export function registerEsmHook(): boolean {
   if (state[REGISTERED]) {
     return true;
@@ -25,7 +18,13 @@ export function registerEsmHook(): boolean {
     return false;
   }
 
-  register(HOOK_SPECIFIER, pathToFileURL(__filename).href);
+  try {
+    register(HOOK_SPECIFIER, pathToFileURL(__filename).href);
+  } catch {
+    // a bundled dist has no import-in-the-middle beside it, and a failed hook must not cost the caller its traces
+    return false;
+  }
+
   state[REGISTERED] = true;
 
   return true;

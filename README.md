@@ -98,7 +98,7 @@ If your app is ESM (`"type": "module"`), use `--import` instead, and keep it on 
 { "scripts": { "start": "node --import ./dist/instrumentation.js dist/server.js" } }
 ```
 
-ESM links every module in the graph before any of them runs, so an `import "./instrumentation.js"` inside `server.js` starts telemetry after Fastify, ioredis or kafkajs have already loaded — too late to patch them. `--import` runs first. Node 20.6 or later is needed for ESM instrumentation; on older runtimes only CommonJS requires are patched.
+ESM links every module in the graph before any of them runs, so an `import "./instrumentation.js"` inside `server.js` starts telemetry after Fastify, ioredis or kafkajs have already loaded — too late to patch them. `--import` runs first. Node 18.19 or later is needed for ESM instrumentation; on older runtimes only CommonJS requires are patched.
 
 That's it. HTTP, database and framework calls are traced automatically.
 
