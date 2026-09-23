@@ -116,10 +116,10 @@ const checks = {
   },
   pnpm: (dir, pack) => {
     writeFileSync(join(dir, "index.js"), APP.replace("MODULE", 'require("@omob/otel-kit")'));
-    // pnpm 10 fails an install whose dependencies have unrun build scripts; none of them matter to this check
+    // pnpm fails an install that skipped a dependency's build script, and protobufjs ships one; the equals form is what both pnpm 10 and 12 parse
     run(
       "pnpm",
-      ["add", "--config.strict-dep-builds=false", "--store-dir", join(workspace, "pnpm-store"), pack, "@opentelemetry/api"],
+      ["add", "--allow-build=protobufjs", "--store-dir", join(workspace, "pnpm-store"), pack, "@opentelemetry/api"],
       dir
     );
 
