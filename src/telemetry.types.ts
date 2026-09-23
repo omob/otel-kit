@@ -125,12 +125,12 @@ export interface IArchitectureComponent {
   owner?: string;
 }
 
-/** Metadata for tools that draw a system diagram from telemetry; emitted under the `archscope.*` namespace. */
+/** Metadata for tools that draw a system diagram from telemetry; emitted under the `ritele.*` namespace. */
 export interface IArchitectureConfig {
   component?: IArchitectureComponent;
   /** Dependencies this service is meant to have, by canonical name, e.g. ["postgresql:ledger", "kafka:transfers", "paystack"]. */
   intendedDependencies?: string[];
-  /** Concurrency limits that bound this service, e.g. { http: 200, pgPool: 20 }. Emitted as archscope.concurrency.<key>. */
+  /** Concurrency limits that bound this service, e.g. { http: 200, pgPool: 20 }. Emitted as ritele.concurrency.<key>. */
   concurrency?: Record<string, number>;
   /** Fraction (0-1) of root traces always recorded and marked `tracestate: as=d`, independently of `traces.sampleRatio`. */
   docTraceRatio?: number;
@@ -183,6 +183,6 @@ export interface IWithSpanOptions extends SpanOptions {
   isError?: (error: unknown) => boolean;
   /** Shorthand for attributes["peer.service"]; names the remote side of this span in a dependency graph. */
   peer?: string;
-  /** Shorthand for attributes["archscope.component.name"]; the logical component this span belongs to. */
+  /** Shorthand for attributes["ritele.component.name"]; the logical component this span belongs to. */
   component?: string;
 }

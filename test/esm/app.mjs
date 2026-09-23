@@ -26,7 +26,7 @@ process.stdout.write(JSON.stringify({
   docMarkOnWire: body.tracestate,                                   // what the server received in the tracestate header
   docMarkOnServerSpan: server?.spanContext().traceState?.get("as") ?? null,
   peerOnClient: client?.attributes["peer.service"] ?? null,
-  archOnResource: server?.resource.attributes["archscope.layer"] ?? null,
+  archOnResource: server?.resource.attributes["ritele.layer"] ?? null,
   spanCount: spans.length,
   queryFreePaths,
 }));

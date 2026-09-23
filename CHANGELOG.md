@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+Breaking
+
+- The architecture attributes are emitted under `ritele.*` rather than `archscope.*`, following the rename of the backend that reads them. `component.name`, `component.type`, `layer`, `domain`, `owner`, `intended_dependencies` and `concurrency.<key>` all move; nothing else changes, and their shapes and meanings are identical. Ritele's ingest reads only the new namespace, so a service on 0.3.0 has its architecture metadata ignored — as it would be by any other backend, and as a service on 0.4.0 would be by a backend still on the old one. A node a backend has already observed keeps whatever `archscope.*` keys it recorded: nothing rewrites stored attributes on upgrade, so expect both namespaces on existing nodes until they age out. The `tracestate` documentation mark stays `as=d`: it is a wire value that collectors and downstream services already match on, and renaming it would strand doc traces mid-flight.
+
 ## 0.3.0
 
 Added

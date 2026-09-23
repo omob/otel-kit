@@ -173,7 +173,7 @@ Telemetry.start({
 
 `docTraceRatio` is the useful one. Sampling 1% of traffic keeps costs down, but a rarely-used dependency can go unseen for days. Documentation traces are a separate 2%, taken from the end of the range your sample ratio never reaches, always recorded, and marked in `tracestate` so every service downstream records them too. A backend can keep those at 100% and drop the rest, and the map stays complete.
 
-The attribute names live under `archscope.*`, the namespace of [ArchScope](https://github.com/omob/archscope); any other backend ignores them.
+The attribute names live under `ritele.*`, the namespace of [Ritele](https://github.com/omob/ritele); any other backend ignores them.
 
 Not every failure is a fault. A wrong password is an expected outcome, and marking it as a span error means your error rate tracks how often users mistype. Pass `isError` to say which throws actually count:
 

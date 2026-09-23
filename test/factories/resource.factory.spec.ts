@@ -34,7 +34,7 @@ describe("ResourceFactory", () => {
 });
 
 describe("ResourceFactory architecture attributes", () => {
-  it("emits archscope.* resource attributes from the architecture block", () => {
+  it("emits ritele.* resource attributes from the architecture block", () => {
     const resource = ResourceFactory.createResource({
       serviceName: "wallet",
       architecture: {
@@ -49,19 +49,19 @@ describe("ResourceFactory architecture attributes", () => {
       },
     });
     expect(resource.attributes).toMatchObject({
-      "archscope.component.type": "service",
-      "archscope.layer": "core",
-      "archscope.domain": "payments",
-      "archscope.owner": "team-wallet",
-      "archscope.intended_dependencies": ["postgresql:ledger", "kafka:transfers"],
-      "archscope.concurrency.http": 200,
-      "archscope.concurrency.pgPool": 20,
+      "ritele.component.type": "service",
+      "ritele.layer": "core",
+      "ritele.domain": "payments",
+      "ritele.owner": "team-wallet",
+      "ritele.intended_dependencies": ["postgresql:ledger", "kafka:transfers"],
+      "ritele.concurrency.http": 200,
+      "ritele.concurrency.pgPool": 20,
     });
-    expect(resource.attributes["archscope.concurrency.bogus"]).toBeUndefined();
+    expect(resource.attributes["ritele.concurrency.bogus"]).toBeUndefined();
   });
 
   it("emits nothing without an architecture block", () => {
     const keys = Object.keys(ResourceFactory.createResource({ serviceName: "x" }).attributes);
-    expect(keys.some((k) => k.startsWith("archscope."))).toBe(false);
+    expect(keys.some((k) => k.startsWith("ritele."))).toBe(false);
   });
 });
