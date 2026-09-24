@@ -24,6 +24,23 @@ describe("ResourceFactory", () => {
     expect(resource.attributes).not.toHaveProperty("deployment.environment.name");
   });
 
+  it("identifies the process with one service.instance.id for its whole life", () => {
+    const first = ResourceFactory.createResource({ serviceName: "kreela-api" });
+    const second = ResourceFactory.createResource({ serviceName: "kreela-api" });
+
+    expect(first.attributes["service.instance.id"]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(second.attributes["service.instance.id"]).toBe(first.attributes["service.instance.id"]);
+  });
+
+  it("lets a configured service.instance.id replace the generated one", () => {
+    const resource = ResourceFactory.createResource({
+      serviceName: "kreela-api",
+      resourceAttributes: { "service.instance.id": "wallet-7d9f-abc12" },
+    });
+
+    expect(resource.attributes["service.instance.id"]).toBe("wallet-7d9f-abc12");
+  });
+
   it("keeps custom attributes but never lets them override the service name", () => {
     const resource = ResourceFactory.createResource({
       serviceName: "kreela-api",

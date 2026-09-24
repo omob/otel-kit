@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 Added
 
 - `metrics.cpuUsage` and `observeCpuUsage()` report `process.cpu.time` in seconds, one series per `cpu.mode`. The flag registers the observer after the SDK starts, so it cannot bind to the no-op meter. Off by default; leave it off where `@opentelemetry/host-metrics` already reports the same metric.
 - `architecture.cpuLimit`, the CPU limit of one replica in cores, emitted as `ritele.cpu.limit`. A non-positive or non-finite value is dropped with a `diag` warning, as `concurrency` limits are.
+- `service.instance.id` is on the resource by default, a random id generated once per process, since NodeSDK's default detectors never set it and a capacity model counts replicas by it. A value from `resourceAttributes` or `OTEL_RESOURCE_ATTRIBUTES` replaces it; see the `resourceAttributes` row in the configuration docs for which wins.
 
 Fixed
 

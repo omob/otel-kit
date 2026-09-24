@@ -275,7 +275,7 @@ Telemetry.start({
 });
 ```
 
-That emits `process.cpu.time`, split by `cpu.mode`, and the resource attribute `ritele.cpu.limit`. Replicas are counted from `service.instance.id`, which resource detection already sets. To observe CPU without the config flag, call `observeCpuUsage()` after `Telemetry.start()`; it returns `{ stop }`. See [Recipes](https://github.com/omob/otel-kit/blob/main/docs/recipes.md) for reading the limit from Kubernetes.
+That emits `process.cpu.time`, split by `cpu.mode`, and the resource attribute `ritele.cpu.limit`. Replicas are counted from `service.instance.id`, which the kit sets to a random id per process unless you supply one. To observe CPU without the config flag, call `observeCpuUsage()` after `Telemetry.start()`; it returns `{ stop }`. See [Recipes](https://github.com/omob/otel-kit/blob/main/docs/recipes.md) for reading the limit from Kubernetes.
 
 ## More
 

@@ -14,7 +14,7 @@ Only `serviceName` is required. Everything else has a working default.
 | `serviceVersion` | — | Shows on every span as `service.version`. |
 | `environment` | — | Shows as `deployment.environment.name`. |
 | `enabled` | `true` | `false` turns everything off and loads no SDK. |
-| `resourceAttributes` | `{}` | Extra attributes on every span, metric and log. |
+| `resourceAttributes` | `{}` | Extra attributes on every span, metric and log. `service.instance.id` defaults to a random id per process. To use something stable, such as the pod name, set it in `OTEL_RESOURCE_ATTRIBUTES`, which needs `resourceDetection` on, or here, which `OTEL_NODE_RESOURCE_DETECTORS=serviceinstance` or `all` would override. |
 | `resourceDetection` | `true` | Auto-detects host and process attributes. Stamps `process.command_args` — your argv — on everything, so set `false` if you pass secrets as flags. |
 
 **Traces**

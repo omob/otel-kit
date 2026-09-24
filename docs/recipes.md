@@ -118,7 +118,7 @@ Or start from nothing and name what you want. This is the better choice for anyt
 instrumentation: { only: [InstrumentationName.HTTP, InstrumentationName.UNDICI, InstrumentationName.PG, InstrumentationName.KAFKAJS] }
 ```
 
-**CPU limit from Kubernetes** — expose the container's limit through the downward API rather than repeating it in code. `divisor: 1m` gives millicores, so `500m` arrives as `500`:
+**CPU limit from Kubernetes** — expose the container's limit through the downward API rather than repeating it in code. `divisor: 1m` gives millicores, so `500m` arrives as `500`. The pod name makes a readable `service.instance.id` in place of the kit's random one:
 
 ```yaml
 env:
@@ -127,6 +127,12 @@ env:
       resourceFieldRef:
         resource: limits.cpu
         divisor: 1m
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+  - name: OTEL_RESOURCE_ATTRIBUTES
+    value: service.instance.id=$(POD_NAME)
 ```
 
 ```ts
@@ -139,4 +145,6 @@ Telemetry.start({
 });
 ```
 
-CPU capacity needs the metrics block exporting somewhere; the limit alone predicts nothing. A pod with no CPU limit has none to report: the downward API then hands back the node's allocatable CPU, which is not what one replica may use, so leave `cpuLimit` unset there.
+CPU capacity needs the metrics block exporting somewhere; the limit alone predicts nothing. Only add `CPU_LIMIT_MILLICORES` to containers that have a CPU limit: without one, the downward API hands back the node's allocatable CPU, which is positive but is not what one replica may use, and the code above cannot tell the difference. `OTEL_RESOURCE_ATTRIBUTES` is read by resource detection, so with `resourceDetection: false` pass `resourceAttributes: { "service.instance.id": process.env.POD_NAME }` instead.
+
+The model assumes one Node process per replica. Under `cluster` or PM2, each worker counts as a replica holding the whole container's limit, so capacity comes out overstated by the worker count. Don't use the pod name there either: the workers would share one id and their CPU series would collide.
