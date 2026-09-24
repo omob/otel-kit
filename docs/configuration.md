@@ -40,6 +40,7 @@ Only `serviceName` is required. Everything else has a working default.
 | `metrics.exportIntervalMillis` | `60000` | How often metrics are pushed. Prometheus ignores it — it's pull-based. |
 | `metrics.prometheus` | `127.0.0.1:9464` | `host`, `port`, `endpoint`. Binds loopback by default — the endpoint is unauthenticated, so only widen it behind a private network. |
 | `metrics.views` | `[]` | Histogram buckets and cardinality limits. |
+| `metrics.cpuUsage` | `false` | Reports `process.cpu.time` in seconds, one series per `cpu.mode` (`user`, `system`). Leave it off if `@opentelemetry/host-metrics` already reports it, or you get two series for one process. |
 | `logs.exporter` | `none` | `none` · `console` · `otlp` |
 
 **Instrumentation and propagation**
@@ -62,6 +63,7 @@ Only `serviceName` is required. Everything else has a working default.
 | `architecture.component` | unset | `{ type, layer, domain, owner }` describing this service. Emitted as resource attributes `ritele.component.type`, `ritele.layer`, `ritele.domain`, `ritele.owner`. `type` takes an `ArchitectureComponentType` member: `SERVICE`, `FUNCTION`, `GATEWAY`, `DATABASE`, `CACHE`, `QUEUE`, `CONSUMER`, `EXTERNAL`, `FRONTEND`, `CRON`. |
 | `architecture.intendedDependencies` | unset | Names of the components this service is meant to call, e.g. `["postgresql:ledger", "kafka:transfers", "paystack"]`. Lets a backend flag drift when the observed calls differ. Emitted as `ritele.intended_dependencies`, a string array. |
 | `architecture.concurrency` | unset | Limits that bound this service, e.g. `{ http: 200, pgPool: 20 }`. Emitted as `ritele.concurrency.<key>`; capacity models use them to predict where saturation starts. |
+| `architecture.cpuLimit` | unset | CPU limit of one replica, in cores, e.g. `0.5`. Emitted as `ritele.cpu.limit`. A value that isn't a positive number is dropped with a `diag` warning. Leave it unset when the pod has no CPU limit. |
 | `architecture.docTraceRatio` | unset | Fraction (0–1) of root traces marked as *documentation traces*, independently of `traces.sampleRatio`. A marked trace is always recorded, and the mark (`tracestate: as=d`) is carried to every downstream service so they record it too. Keeps a topology complete under aggressive production sampling: `sampleRatio: 0.001, docTraceRatio: 0.02` costs almost nothing and still sees every dependency. It wraps whichever sampler you configure, a custom `traces.sampler` included, and a marked trace bypasses that sampler entirely. The mark is only honoured where a trace enters the process, and only when the inbound `traceparent` is already sampled, so a caller cannot force recording with a `tracestate` header alone and local spans still answer to your own sampler — but on a service that accepts traffic from outside your network, treat it as you treat a forged sampled flag and strip both headers at the edge. |
 | `architecture.peers` | unset | Map outbound hosts to a stable name: `{ "api.paystack.co": "paystack", "*.interswitch.com": "interswitch" }`. Sets `peer.service` on client and producer spans so three regional hostnames become one component in a graph. Keys are exact hosts or `*.suffix`. Matching needs a host attribute on the span, which HTTP, undici, pg and ioredis set but the messaging instrumentations do not — name a broker with `withSpan({ peer })` or `intendedDependencies` instead. |
 
@@ -98,6 +100,8 @@ process.on("SIGINT", () => drain(130));
 ```
 
 Do not leave `handleShutdownSignals` on *and* call `Telemetry.shutdown()` from your own handler — one flush runs, both callers await it, but the ordering of your drain is no longer guaranteed.
+
+`Telemetry.start()` works again once a shutdown has completed, typically in tests; a `start()` while one is still in progress is ignored, so await it. The restarted SDK takes every new option except the instrumentation set: it keeps the instrumentations of the first start, because a new one cannot patch modules your app has already loaded. Shutdown releases only the globals the kit registered, so a provider, propagator or context manager your app set up itself stays in place.
 
 ## Turning things off
 

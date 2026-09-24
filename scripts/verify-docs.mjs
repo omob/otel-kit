@@ -49,7 +49,7 @@ const isScriptTag = (code) => code.trim().startsWith("{") && code.includes('"scr
 // the docs use `{ ..., x }` to mean "your existing config, plus x"
 const expandEllipsis = (code) => code.replace(/\{\s*\.\.\.\s*,/g, '{ serviceName: "sample",');
 
-const OUR_NAMES = ["Telemetry", "withSpan", "getTracer", "currentTraceId", "observeConnectionPool", "ArchitectureComponentType", "DocTraceState", "ExporterType", "InstrumentationName", "OtlpProtocol", "PropagatorType"];
+const OUR_NAMES = ["Telemetry", "withSpan", "getTracer", "currentTraceId", "observeConnectionPool", "observeCpuUsage", "ArchitectureComponentType", "DocTraceState", "ExporterType", "InstrumentationName", "OtlpProtocol", "PropagatorType"];
 
 // a sample may import only the symbol it is introducing, assuming the reader already imported the rest
 const missingImports = (code) => {

@@ -263,6 +263,20 @@ You get `db.client.connection.max`, `db.client.connection.count` split by `used`
 
 This is the number that tells you whether a slow query is slow, or just waiting: a pool pinned at its limit with requests queued means the bottleneck is your configuration, not the database. It needs the metrics block enabled, and works with any pool — Postgres, MySQL, Mongo, Redis — since you supply the reader.
 
+## CPU capacity
+
+To predict when a service runs out of CPU, a backend needs how much CPU each process uses and how much each replica is allowed. Turn on the first with `metrics.cpuUsage` and state the second with `architecture.cpuLimit`:
+
+```ts
+Telemetry.start({
+  serviceName: "wallet-service",
+  metrics: { exporter: ExporterType.OTLP, cpuUsage: true },
+  architecture: { cpuLimit: 0.5 },
+});
+```
+
+That emits `process.cpu.time`, split by `cpu.mode`, and the resource attribute `ritele.cpu.limit`. Replicas are counted from `service.instance.id`, which resource detection already sets. To observe CPU without the config flag, call `observeCpuUsage()` after `Telemetry.start()`; it returns `{ stop }`. See [Recipes](https://github.com/omob/otel-kit/blob/main/docs/recipes.md) for reading the limit from Kubernetes.
+
 ## More
 
 - [Configuration](https://github.com/omob/otel-kit/blob/main/docs/configuration.md) — every option, shutdown behaviour, and what happens when a config is rejected

@@ -1,3 +1,6 @@
+import type { ContextManager, TextMapPropagator } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import type { Instrumentation } from "@opentelemetry/instrumentation";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor, SpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ExporterType } from "../enums/exporter-type.enum";
@@ -16,7 +19,23 @@ const DISABLED_SIGNAL: ITraceConfig & IMetricConfig & ILogConfig = { exporter: E
 const DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT = 4_096;
 
 class SdkFactory {
-  static createSdk(config: ITelemetryConfig): NodeSDK {
+  static createInstrumentations(config: ITelemetryConfig): Instrumentation[] {
+    return InstrumentationFactory.createInstrumentations(config.instrumentation);
+  }
+
+  static createPropagator(config: ITelemetryConfig): TextMapPropagator {
+    return PropagatorFactory.createPropagator(config.propagators);
+  }
+
+  static createContextManager(): ContextManager {
+    return new AsyncLocalStorageContextManager();
+  }
+
+  // instrumentations patch on construction, so they are only built once the rest of the config has been accepted
+  static createSdk(
+    config: ITelemetryConfig,
+    getInstrumentations: () => Instrumentation[] = () => SdkFactory.createInstrumentations(config)
+  ): NodeSDK {
     const traces = config.traces ?? DISABLED_SIGNAL;
     const metrics = config.metrics ?? DISABLED_SIGNAL;
     const traceExporter = TraceExporterFactory.createExporter(traces);
@@ -29,21 +48,28 @@ class SdkFactory {
       ...(traces.additionalProcessors ?? []),
     ];
 
-    // empty arrays keep NodeSDK from falling back to its OTEL_* environment defaults, which export to localhost:4318
+    const resource = ResourceFactory.createResource(config);
+    const sampler = SamplerFactory.withDocTraces(
+      traces.sampler ?? SamplerFactory.createSampler(traces.sampleRatio),
+      config.architecture?.docTraceRatio
+    );
+    const logRecordProcessors = LogProcessorFactory.createProcessors(config.logs ?? DISABLED_SIGNAL);
+
+    // empty arrays keep NodeSDK from falling back to its OTEL_* environment defaults, which export to localhost:4318;
+    // null context manager and propagator leave their registration to the caller, which tracks what it owns
     return new NodeSDK({
-      resource: ResourceFactory.createResource(config),
+      resource,
       autoDetectResources: config.resourceDetection ?? true,
-      sampler: SamplerFactory.withDocTraces(
-        traces.sampler ?? SamplerFactory.createSampler(traces.sampleRatio),
-        config.architecture?.docTraceRatio
-      ),
+      sampler,
       spanLimits: { attributeValueLengthLimit: DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT, ...config.spanLimits },
       spanProcessors,
       metricReaders: metricReader ? [metricReader] : [],
       views: metrics.views ?? [],
-      logRecordProcessors: LogProcessorFactory.createProcessors(config.logs ?? DISABLED_SIGNAL),
-      instrumentations: InstrumentationFactory.createInstrumentations(config.instrumentation),
-      textMapPropagator: PropagatorFactory.createPropagator(config.propagators),
+      logRecordProcessors,
+      instrumentations: getInstrumentations(),
+      // sdk-node treats null as "do not register" at runtime, but its type leaves null out
+      contextManager: null as unknown as ContextManager,
+      textMapPropagator: null,
     });
   }
 }

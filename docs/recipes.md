@@ -117,3 +117,26 @@ Or start from nothing and name what you want. This is the better choice for anyt
 ```ts
 instrumentation: { only: [InstrumentationName.HTTP, InstrumentationName.UNDICI, InstrumentationName.PG, InstrumentationName.KAFKAJS] }
 ```
+
+**CPU limit from Kubernetes** — expose the container's limit through the downward API rather than repeating it in code. `divisor: 1m` gives millicores, so `500m` arrives as `500`:
+
+```yaml
+env:
+  - name: CPU_LIMIT_MILLICORES
+    valueFrom:
+      resourceFieldRef:
+        resource: limits.cpu
+        divisor: 1m
+```
+
+```ts
+const millicores = Number(process.env.CPU_LIMIT_MILLICORES);
+
+Telemetry.start({
+  serviceName: "wallet-service",
+  metrics: { exporter: ExporterType.OTLP, cpuUsage: true },
+  architecture: { cpuLimit: millicores > 0 ? millicores / 1000 : undefined },
+});
+```
+
+CPU capacity needs the metrics block exporting somewhere; the limit alone predicts nothing. A pod with no CPU limit has none to report: the downward API then hands back the node's allocatable CPU, which is not what one replica may use, so leave `cpuLimit` unset there.

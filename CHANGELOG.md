@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+Added
+
+- `metrics.cpuUsage` and `observeCpuUsage()` report `process.cpu.time` in seconds, one series per `cpu.mode`. The flag registers the observer after the SDK starts, so it cannot bind to the no-op meter. Off by default; leave it off where `@opentelemetry/host-metrics` already reports the same metric.
+- `architecture.cpuLimit`, the CPU limit of one replica in cores, emitted as `ritele.cpu.limit`. A non-positive or non-finite value is dropped with a `diag` warning, as `concurrency` limits are.
+
+Fixed
+
+- `Telemetry.start()` after `Telemetry.shutdown()` exported nothing. The API refuses a second registration of a global provider, so the new SDK's tracer, meter and logger providers were ignored in favour of the shut-down ones, and the new instrumentations could not patch modules the app had already loaded. Shutdown now releases the globals the kit registered, and only those, and a restart rebinds the instrumentations of the first start to the new SDK. A `start()` while a shutdown is still in progress is ignored with a `diag` warning.
+
 ## 0.4.0
 
 Breaking

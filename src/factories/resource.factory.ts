@@ -34,7 +34,7 @@ class ResourceFactory {
     }
 
     const out: Record<string, ResourceAttributeValue> = {};
-    const { component, intendedDependencies, concurrency } = architecture;
+    const { component, intendedDependencies, concurrency, cpuLimit } = architecture;
 
     const componentAttributes: Array<[ArchitectureAttribute, string | undefined]> = [
       [ArchitectureAttribute.COMPONENT_TYPE, component?.type],
@@ -58,6 +58,14 @@ class ResourceFactory {
         out[`${ArchitectureAttribute.CONCURRENCY_PREFIX}${key}`] = limit;
       } else {
         diag.warn(`@omob/otel-kit ignores the concurrency limit "${key}: ${limit}"; it must be a positive number`);
+      }
+    }
+
+    if (cpuLimit !== undefined) {
+      if (Number.isFinite(cpuLimit) && cpuLimit > 0) {
+        out[ArchitectureAttribute.CPU_LIMIT] = cpuLimit;
+      } else {
+        diag.warn(`@omob/otel-kit ignores the CPU limit "${cpuLimit}"; it must be a positive number of cores`);
       }
     }
 

@@ -1,16 +1,32 @@
-import { diag, DiagConsoleLogger } from "@opentelemetry/api";
+import { context, diag, DiagConsoleLogger, metrics, propagation, ProxyTracerProvider, trace } from "@opentelemetry/api";
+import { logs } from "@opentelemetry/api-logs";
+import type { Instrumentation } from "@opentelemetry/instrumentation";
 import type { NodeSDK } from "@opentelemetry/sdk-node";
 import { TelemetryErrorCode } from "../enums/telemetry-error-code.enum";
+import { TelemetryGlobal } from "../enums/telemetry-global.enum";
 import TelemetryConfigError from "../errors/telemetry-config.error";
 import type SdkFactory from "../factories/sdk.factory";
-import { ITelemetryConfig } from "../telemetry.types";
+import { ICpuUsageHandle, ITelemetryConfig } from "../telemetry.types";
+import { observeCpuUsage } from "./cpu-usage.service";
 
 const DEFAULT_SHUTDOWN_TIMEOUT_MILLIS = 5_000;
 const SHUTDOWN_SIGNALS: NodeJS.Signals[] = ["SIGTERM", "SIGINT"];
+const PROVIDER_GLOBALS = [TelemetryGlobal.TRACER_PROVIDER, TelemetryGlobal.METER_PROVIDER, TelemetryGlobal.LOGGER_PROVIDER];
+const RELEASE_GLOBAL: Record<TelemetryGlobal, () => void> = {
+  [TelemetryGlobal.TRACER_PROVIDER]: () => trace.disable(),
+  [TelemetryGlobal.METER_PROVIDER]: () => metrics.disable(),
+  [TelemetryGlobal.LOGGER_PROVIDER]: () => logs.disable(),
+  [TelemetryGlobal.PROPAGATOR]: () => propagation.disable(),
+  [TelemetryGlobal.CONTEXT_MANAGER]: () => context.disable(),
+};
 
 class TelemetryService {
   private sdk?: NodeSDK;
   private shutdownPromise?: Promise<void>;
+  private cpuUsage?: ICpuUsageHandle;
+  private instrumentations?: Instrumentation[];
+  private ownedGlobals: TelemetryGlobal[] = [];
+  private stopping = false;
   private signalHandlers = new Map<NodeJS.Signals, () => void>();
 
   start(config: ITelemetryConfig): void {
@@ -18,9 +34,16 @@ class TelemetryService {
       return;
     }
 
+    if (this.stopping) {
+      diag.warn("@omob/otel-kit ignores start() while a shutdown is in progress; await Telemetry.shutdown() first");
+
+      return;
+    }
+
     try {
       this.startSdk(config);
     } catch (error) {
+      this.releaseGlobals();
       this.reportStartupError(error as Error, config);
     }
   }
@@ -32,13 +55,26 @@ class TelemetryService {
       return this.shutdownPromise ?? Promise.resolve();
     }
 
+    const cpuUsage = this.cpuUsage;
+
     this.sdk = undefined;
+    this.cpuUsage = undefined;
+    this.stopping = true;
     this.removeShutdownHandlers();
 
-    this.shutdownPromise = Promise.race([sdk.shutdown(), this.expireAfter(timeoutMillis)]).catch((error) => {
-      this.sdk = sdk;
-      throw error;
-    });
+    this.shutdownPromise = Promise.race([sdk.shutdown(), this.expireAfter(timeoutMillis)]).then(
+      () => {
+        this.stopping = false;
+        cpuUsage?.stop();
+        this.releaseGlobals();
+      },
+      (error) => {
+        this.stopping = false;
+        this.sdk = sdk;
+        this.cpuUsage = cpuUsage;
+        throw error;
+      }
+    );
 
     return this.shutdownPromise;
   }
@@ -54,16 +90,53 @@ class TelemetryService {
 
     this.configureDiagnostics(config);
 
-    const sdk = this.loadSdkFactory().createSdk(config);
+    const sdkFactory = this.loadSdkFactory();
+    const propagator = sdkFactory.createPropagator(config);
+    // a fresh set cannot patch modules the app already loaded, so a restart keeps the first set and sdk.start() rebinds it
+    const sdk = sdkFactory.createSdk(config, () => (this.instrumentations ??= sdkFactory.createInstrumentations(config)));
+    const contextManager = sdkFactory.createContextManager();
+    const providersBefore = this.globalProviders();
+
+    if (propagation.setGlobalPropagator(propagator)) {
+      this.ownedGlobals.push(TelemetryGlobal.PROPAGATOR);
+    }
+
+    if (context.setGlobalContextManager(contextManager)) {
+      contextManager.enable();
+      this.ownedGlobals.push(TelemetryGlobal.CONTEXT_MANAGER);
+    }
 
     sdk.start();
 
+    const providersAfter = this.globalProviders();
+
+    this.ownedGlobals.push(...PROVIDER_GLOBALS.filter((provider) => providersBefore[provider] !== providersAfter[provider]));
     this.sdk = sdk;
     this.shutdownPromise = undefined;
+
+    // registered after start so the instrument binds to the sdk's meter provider, not the no-op global
+    if (config.metrics?.cpuUsage) {
+      this.cpuUsage = observeCpuUsage();
+    }
 
     if (config.handleShutdownSignals !== false) {
       this.registerShutdownHandlers(config);
     }
+  }
+
+  // NodeSDK discards whether its registrations were accepted, so ownership is read off the globals it may have replaced
+  private globalProviders(): Record<string, unknown> {
+    return {
+      [TelemetryGlobal.TRACER_PROVIDER]: (trace.getTracerProvider() as ProxyTracerProvider).getDelegate(),
+      [TelemetryGlobal.METER_PROVIDER]: metrics.getMeterProvider(),
+      [TelemetryGlobal.LOGGER_PROVIDER]: logs.getLoggerProvider(),
+    };
+  }
+
+  // the api refuses a second registration of any global, so a restarted sdk would otherwise feed the shut-down providers
+  private releaseGlobals(): void {
+    this.ownedGlobals.forEach((owned) => RELEASE_GLOBAL[owned]());
+    this.ownedGlobals = [];
   }
 
   // otel writes its own failures through diag, which discards everything until a logger is installed

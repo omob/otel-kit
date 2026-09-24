@@ -92,6 +92,8 @@ export interface IMetricConfig {
   otlp?: IOtlpOptions;
   gcp?: IGcpOptions;
   prometheus?: IPrometheusOptions;
+  /** Report `process.cpu.time` for this process. Leave off where `@opentelemetry/host-metrics` already reports it. */
+  cpuUsage?: boolean;
 }
 
 export interface ILogConfig {
@@ -132,6 +134,8 @@ export interface IArchitectureConfig {
   intendedDependencies?: string[];
   /** Concurrency limits that bound this service, e.g. { http: 200, pgPool: 20 }. Emitted as ritele.concurrency.<key>. */
   concurrency?: Record<string, number>;
+  /** CPU limit of one replica, in cores, e.g. 0.5. Emitted as ritele.cpu.limit. */
+  cpuLimit?: number;
   /** Fraction (0-1) of root traces always recorded and marked `tracestate: as=d`, independently of `traces.sampleRatio`. */
   docTraceRatio?: number;
   /** Outbound hosts (exact or `*.suffix`) mapped to the `peer.service` name a dependency graph should show. */
@@ -175,6 +179,16 @@ export interface IConnectionPoolOptions {
 
 export interface IConnectionPoolHandle {
   recordWait: (millis: number) => void;
+  stop: () => void;
+}
+
+/** Microseconds, as `process.cpuUsage()` returns them. */
+export interface ICpuUsageReading {
+  user: number;
+  system: number;
+}
+
+export interface ICpuUsageHandle {
   stop: () => void;
 }
 
