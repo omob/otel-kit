@@ -2,23 +2,17 @@
 
 OpenTelemetry setup for Node services, in one function call.
 
-```mermaid
-flowchart LR
-    R(["a request arrives"])
+Observability rests on three signals, and each answers a different question:
 
-    R --> M["METRICS<br/>counts and latencies, aggregated<br/>-<br/>is something wrong?"]
-    R --> T["TRACES<br/>one request, span by span<br/>-<br/>where is it wrong?"]
-    R --> L["LOGS<br/>the lines you wrote<br/>-<br/>why is it wrong?"]
+| Signal | What it is | The question it answers |
+| --- | --- | --- |
+| **Metrics** | counts and latencies, aggregated | *Is* something wrong? |
+| **Traces** | one request, followed span by span | *Where* is it wrong — which service, query or call? |
+| **Logs** | the lines your code writes | *Why* is it wrong, once you know where to look? |
 
-    M -- "a latency spike,<br/>at 14:02" --> T
-    T -- "trace_id stamped<br/>on every line" --> L
+You work down the table: a latency spike at 14:02 in the metrics leads you to the traces from that minute, and the `trace_id` on each log line leads you from a trace to its logs.
 
-    style T stroke-width:3px
-```
-
-Those are the three signals of observability, and they answer different questions. Metrics tell you *something* broke. Traces tell you *where* — which service, which query, which call. Logs tell you *why*, once you know where to look.
-
-Tracing is the one that connects the other two, and it is what this package is mostly for. You pick where traces, metrics and logs go; it handles the SDK, the sampling, the shutdown flush, and the boilerplate around spans — and stamps `trace_id` into your logs so the third column lines up with the second.
+Tracing is the one that connects the other two, and it is what this package is mostly for. You pick where traces, metrics and logs go; it handles the SDK, the sampling, the shutdown flush and the boilerplate around spans, and stamps `trace_id` into your logs so every line leads back to its trace.
 
 ## Install
 
