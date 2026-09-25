@@ -67,7 +67,7 @@ class SdkFactory {
     return new NodeSDK({
       resource,
       autoDetectResources: config.resourceDetection ?? true,
-      resourceDetectors: ResourceDetectorFactory.createDetectors(),
+      resourceDetectors: ResourceDetectorFactory.createDetectors(config.hostName),
       sampler,
       spanLimits: { attributeValueLengthLimit: DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT, ...config.spanLimits },
       spanProcessors,

@@ -28,6 +28,10 @@ const restart = run({}, [join(dir, "restart.mjs")]);
 const health = run({ npm_package_version: "7.7.7" }, [join(dir, "health.mjs")]);
 const noRuntime = run({ OTEL_KIT_TEST_RUNTIME_METRICS: "false" }, [join(dir, "health.mjs")]);
 
+const personalMachine =
+  ["darwin", "win32"].includes(process.platform) ||
+  ["DISPLAY", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "WSL_DISTRO_NAME"].some((variable) => Boolean(process.env[variable]));
+
 const checks = [
   ["doc-trace mark propagates over HTTP (tracestate header)", String(on.docMarkOnWire).includes("as=d")],
   ["doc-trace mark present on the server span", on.docMarkOnServerSpan === "d"],
@@ -51,6 +55,13 @@ const checks = [
   ["resource carries ritele.trace.sample_probability", health.resource["ritele.trace.sample_probability"] === 0.1],
   ["resource carries telemetry.sdk.language", health.resource["telemetry.sdk.language"] === "nodejs"],
   ["resource carries no process.command_args", !("process.command_args" in health.resource)],
+  ["resource carries no process.executable.path", !("process.executable.path" in health.resource)],
+  ["resource carries no process.executable.name", !("process.executable.name" in health.resource)],
+  [
+    `host.name is ${personalMachine ? "a pseudonym" : "the real name"} by default on this ${process.platform} machine`,
+    /^host-[0-9a-f]{12}$/.test(health.resource["host.name"] ?? "") === personalMachine &&
+      typeof health.resource["host.name"] === "string",
+  ],
 ];
 
 for (const [name, ok] of checks) console.log(`esm: ${ok ? "ok  " : "FAIL"} ${name}`);

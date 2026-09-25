@@ -5,6 +5,7 @@ import type { MetricReader, PushMetricExporter, ViewOptions } from "@opentelemet
 import type { Sampler, SpanExporter, SpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ArchitectureComponentType } from "./enums/architecture-component-type.enum";
 import { ExporterType } from "./enums/exporter-type.enum";
+import { HostNameMode } from "./enums/host-name-mode.enum";
 import { InstrumentationName } from "./enums/instrumentation-name.enum";
 import { OtlpProtocol } from "./enums/otlp-protocol.enum";
 import { PropagatorType } from "./enums/propagator-type.enum";
@@ -149,6 +150,8 @@ export interface ITelemetryConfig {
   enabled?: boolean;
   resourceAttributes?: Record<string, ResourceAttributeValue>;
   resourceDetection?: boolean;
+  /** How `host.name` and `host.id` are sent. `AUTO` sends pseudonyms on macOS, Windows and Linux desktop sessions, and real values elsewhere. */
+  hostName?: HostNameMode;
   /** Event loop, heap and GC metrics from the runtime-node instrumentation. On by default, `instrumentation.only` included. */
   runtimeMetrics?: boolean;
   spanLimits?: ISpanLimits;
