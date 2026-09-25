@@ -67,6 +67,22 @@ describe("Telemetry.shutdown", () => {
     expect(Telemetry.isStarted).toBe(false);
   });
 
+  it("drops a failed flush's sdk when a later one has started and stopped since", async () => {
+    let failFirstFlush: (error: Error) => void = () => undefined;
+    mockShutdown
+      .mockReturnValueOnce(new Promise<void>((_, reject) => (failFirstFlush = reject)))
+      .mockResolvedValueOnce(undefined);
+    start();
+
+    const firstFlush = Telemetry.shutdown();
+    start();
+    await Telemetry.shutdown();
+    failFirstFlush(new Error("collector unreachable"));
+
+    await expect(firstFlush).rejects.toThrow("collector unreachable");
+    expect(Telemetry.isStarted).toBe(false);
+  });
+
   it("flushes only once across repeated calls", async () => {
     mockShutdown.mockResolvedValue(undefined);
     start();

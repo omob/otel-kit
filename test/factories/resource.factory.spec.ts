@@ -1,3 +1,4 @@
+import { diag } from "@opentelemetry/api";
 import { ArchitectureComponentType } from "../../src/enums/architecture-component-type.enum";
 import ResourceFactory from "../../src/factories/resource.factory";
 
@@ -21,6 +22,23 @@ describe("ResourceFactory", () => {
 
     expect(resource.attributes).not.toHaveProperty("service.version");
     expect(resource.attributes).not.toHaveProperty("deployment.environment.name");
+  });
+
+  it("identifies the process with one service.instance.id for its whole life", () => {
+    const first = ResourceFactory.createResource({ serviceName: "kreela-api" });
+    const second = ResourceFactory.createResource({ serviceName: "kreela-api" });
+
+    expect(first.attributes["service.instance.id"]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(second.attributes["service.instance.id"]).toBe(first.attributes["service.instance.id"]);
+  });
+
+  it("lets a configured service.instance.id replace the generated one", () => {
+    const resource = ResourceFactory.createResource({
+      serviceName: "kreela-api",
+      resourceAttributes: { "service.instance.id": "wallet-7d9f-abc12" },
+    });
+
+    expect(resource.attributes["service.instance.id"]).toBe("wallet-7d9f-abc12");
   });
 
   it("keeps custom attributes but never lets them override the service name", () => {
@@ -58,6 +76,23 @@ describe("ResourceFactory architecture attributes", () => {
       "ritele.concurrency.pgPool": 20,
     });
     expect(resource.attributes["ritele.concurrency.bogus"]).toBeUndefined();
+  });
+
+  it("emits the cpu limit of one replica in cores", () => {
+    const resource = ResourceFactory.createResource({ serviceName: "wallet", architecture: { cpuLimit: 0.5 } });
+
+    expect(resource.attributes["ritele.cpu.limit"]).toBe(0.5);
+  });
+
+  it.each([0, -1, NaN, Infinity])("drops a cpu limit of %p with a warning", (cpuLimit) => {
+    const warn = jest.spyOn(diag, "warn").mockImplementation(() => undefined);
+
+    const resource = ResourceFactory.createResource({ serviceName: "wallet", architecture: { cpuLimit } });
+
+    expect(resource.attributes["ritele.cpu.limit"]).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("CPU limit"));
+
+    warn.mockRestore();
   });
 
   it("emits nothing without an architecture block", () => {

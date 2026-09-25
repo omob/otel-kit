@@ -10,8 +10,8 @@ if (major < 18 || (major === 18 && minor < 19)) {
   process.exit(0);
 }
 
-function run(env) {
-  const r = spawnSync(process.execPath, ["--import", join(dir, "otel.mjs"), join(dir, "app.mjs")], {
+function run(env, args = ["--import", join(dir, "otel.mjs"), join(dir, "app.mjs")]) {
+  const r = spawnSync(process.execPath, args, {
     env: { ...process.env, ...env },
     encoding: "utf8",
   });
@@ -24,6 +24,7 @@ function run(env) {
 
 const on = run({});
 const off = run({ OTEL_KIT_TEST_ESM_HOOK: "false" });
+const restart = run({}, [join(dir, "restart.mjs")]);
 
 const checks = [
   ["doc-trace mark propagates over HTTP (tracestate header)", String(on.docMarkOnWire).includes("as=d")],
@@ -37,10 +38,13 @@ const checks = [
   ["fastify sets http.route with hook", on.fastifyRoute === "/transfers/:id"],
   ["fastify sets http.route without hook", off.fastifyRoute === "/transfers/:id"],
   ["url.path keeps no query string", on.queryFreePaths === true],
+  ["http spans recorded before a restart", restart.beforeRestart === 2],
+  ["http spans recorded after a restart", restart.afterRestart === 2],
+  ["client and server spans linked after a restart", restart.linkedAfterRestart === true],
 ];
 
 for (const [name, ok] of checks) console.log(`esm: ${ok ? "ok  " : "FAIL"} ${name}`);
 if (!checks.every(([, ok]) => ok)) {
-  console.error("with hook:", JSON.stringify(on), "\nwithout:", JSON.stringify(off));
+  console.error("with hook:", JSON.stringify(on), "\nwithout:", JSON.stringify(off), "\nrestart:", JSON.stringify(restart));
   process.exit(1);
 }

@@ -1,16 +1,20 @@
+import { randomUUID } from "node:crypto";
 import { diag } from "@opentelemetry/api";
 import { resourceFromAttributes } from "@opentelemetry/resources";
-import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
+import { ATTR_SERVICE_INSTANCE_ID, ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
 import type { Resource } from "@opentelemetry/resources";
 import { ArchitectureAttribute } from "../enums/architecture-attribute.enum";
 import { IArchitectureConfig, ITelemetryConfig, ResourceAttributeValue } from "../telemetry.types";
 
 // still an incubating convention, whose subpath export only resolves under node16 module resolution
 const ATTR_DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
+// NodeSDK's default detectors never set it; one id per process, kept across Telemetry restarts
+const SERVICE_INSTANCE_ID = randomUUID();
 
 class ResourceFactory {
   static createResource(config: ITelemetryConfig): Resource {
     const attributes: Record<string, ResourceAttributeValue> = {
+      [ATTR_SERVICE_INSTANCE_ID]: SERVICE_INSTANCE_ID,
       ...config.resourceAttributes,
       ...ResourceFactory.architectureAttributes(config.architecture),
       [ATTR_SERVICE_NAME]: config.serviceName,
@@ -34,7 +38,7 @@ class ResourceFactory {
     }
 
     const out: Record<string, ResourceAttributeValue> = {};
-    const { component, intendedDependencies, concurrency } = architecture;
+    const { component, intendedDependencies, concurrency, cpuLimit } = architecture;
 
     const componentAttributes: Array<[ArchitectureAttribute, string | undefined]> = [
       [ArchitectureAttribute.COMPONENT_TYPE, component?.type],
@@ -58,6 +62,14 @@ class ResourceFactory {
         out[`${ArchitectureAttribute.CONCURRENCY_PREFIX}${key}`] = limit;
       } else {
         diag.warn(`@omob/otel-kit ignores the concurrency limit "${key}: ${limit}"; it must be a positive number`);
+      }
+    }
+
+    if (cpuLimit !== undefined) {
+      if (Number.isFinite(cpuLimit) && cpuLimit > 0) {
+        out[ArchitectureAttribute.CPU_LIMIT] = cpuLimit;
+      } else {
+        diag.warn(`@omob/otel-kit ignores the CPU limit "${cpuLimit}"; it must be a positive number of cores`);
       }
     }
 
