@@ -3,7 +3,7 @@ describe("package entry point", () => {
     const entry = require("../src/index");
 
     expect(Object.keys(entry).sort()).toEqual(
-      ["ArchitectureComponentType", "DocTraceState", "ExporterType", "InstrumentationName", "OtlpProtocol", "PropagatorType", "Telemetry", "TelemetryConfigError", "TelemetryErrorCode", "TelemetrySignal", "currentTraceId", "getTracer", "observeConnectionPool", "observeCpuUsage", "withSpan"].sort()
+      ["ArchitectureComponentType", "DocTraceState", "ExporterType", "HostNameMode", "InstrumentationName", "OtlpProtocol", "PropagatorType", "Telemetry", "TelemetryConfigError", "TelemetryErrorCode", "TelemetrySignal", "currentTraceId", "getTracer", "observeConnectionPool", "observeCpuUsage", "withSpan"].sort()
     );
   });
 

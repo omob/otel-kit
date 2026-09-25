@@ -1,6 +1,7 @@
 import { ArchitectureComponentType } from "./enums/architecture-component-type.enum";
 import { DocTraceState } from "./enums/doc-trace-state.enum";
 import { ExporterType } from "./enums/exporter-type.enum";
+import { HostNameMode } from "./enums/host-name-mode.enum";
 import { InstrumentationName } from "./enums/instrumentation-name.enum";
 import { OtlpProtocol } from "./enums/otlp-protocol.enum";
 import { PropagatorType } from "./enums/propagator-type.enum";
@@ -17,6 +18,7 @@ export {
   currentTraceId,
   DocTraceState,
   ExporterType,
+  HostNameMode,
   getTracer,
   InstrumentationName,
   observeConnectionPool,
