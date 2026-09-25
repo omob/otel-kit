@@ -98,6 +98,17 @@ describe("MetricConfigFactory", () => {
     expect(metrics).toEqual({ exporter: ExporterType.OTLP, otlp: { protocol: undefined } });
   });
 
+  it("lets OTEL_METRICS_EXPORTER=none switch off an explicit metrics block too", () => {
+    const metrics = withEnvironment({ OTEL_METRICS_EXPORTER: "none" }, () =>
+      MetricConfigFactory.createMetricConfig({
+        serviceName: "kreela-api",
+        metrics: { exporter: ExporterType.OTLP, cpuUsage: true, otlp: { url: "https://metrics.example/v1/metrics" } },
+      })
+    );
+
+    expect(metrics).toEqual({ exporter: ExporterType.NONE });
+  });
+
   it.each(["none", "otlp, none"])("sends no derived metrics when OTEL_METRICS_EXPORTER is %p", (value) => {
     const metrics = withEnvironment({ OTEL_METRICS_EXPORTER: value }, () =>
       MetricConfigFactory.createMetricConfig({ serviceName: "kreela-api", traces: { exporter: ExporterType.OTLP } })

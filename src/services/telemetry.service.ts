@@ -12,9 +12,11 @@ import {
 import { logs } from "@opentelemetry/api-logs";
 import type { Instrumentation } from "@opentelemetry/instrumentation";
 import type { NodeSDK } from "@opentelemetry/sdk-node";
+import { ExporterType } from "../enums/exporter-type.enum";
 import { TelemetryErrorCode } from "../enums/telemetry-error-code.enum";
 import { TelemetryGlobal } from "../enums/telemetry-global.enum";
 import TelemetryConfigError from "../errors/telemetry-config.error";
+import MetricConfigFactory from "../factories/metric-config.factory";
 import type SdkFactory from "../factories/sdk.factory";
 import { ICpuUsageHandle, ITelemetryConfig } from "../telemetry.types";
 import { observeCpuUsage } from "./cpu-usage.service";
@@ -126,7 +128,13 @@ class TelemetryService {
     this.shutdownPromise = undefined;
 
     // registered after start so the instrument binds to the sdk's meter provider, not the no-op global
-    if (sdkEnabled && config.metrics?.cpuUsage) {
+    const metrics = MetricConfigFactory.createMetricConfig(config);
+
+    if (config.metrics && config.metrics.exporter !== ExporterType.NONE && metrics.exporter === ExporterType.NONE) {
+      console.warn("@omob/otel-kit exports no metrics: OTEL_METRICS_EXPORTER=none overrides the metrics block in code");
+    }
+
+    if (sdkEnabled && metrics.exporter !== ExporterType.NONE && metrics.cpuUsage) {
       this.cpuUsage = observeCpuUsage();
     }
 

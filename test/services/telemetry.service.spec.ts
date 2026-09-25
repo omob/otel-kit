@@ -152,7 +152,7 @@ describe("Telemetry cpu usage", () => {
     const { NodeSDK } = require("@opentelemetry/sdk-node");
     jest.spyOn(NodeSDK.prototype, "shutdown").mockRejectedValueOnce(new Error("exporter down"));
 
-    Telemetry.start({ ...silentConfig, metrics: { exporter: ExporterType.NONE, cpuUsage: true } });
+    Telemetry.start({ ...silentConfig, metrics: { exporter: ExporterType.OTLP, cpuUsage: true, otlp: { url: "http://127.0.0.1:9/v1/metrics" } } });
 
     await expect(Telemetry.shutdown()).rejects.toThrow("exporter down");
     expect(stop).not.toHaveBeenCalled();
@@ -160,6 +160,22 @@ describe("Telemetry cpu usage", () => {
     await Telemetry.shutdown();
 
     expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("observes no cpu usage, and says why, when OTEL_METRICS_EXPORTER=none switches off a metrics block", () => {
+    const observe = jest.spyOn(cpuUsageService, "observeCpuUsage");
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    process.env.OTEL_METRICS_EXPORTER = "none";
+
+    try {
+      Telemetry.start({ ...silentConfig, metrics: { exporter: ExporterType.OTLP, cpuUsage: true } });
+    } finally {
+      delete process.env.OTEL_METRICS_EXPORTER;
+    }
+
+    expect(observe).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("OTEL_METRICS_EXPORTER=none"));
   });
 
   it.each([undefined, false])("leaves cpu usage alone when cpuUsage is %p", (cpuUsage) => {

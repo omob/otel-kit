@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.7.0
+
+**Upgrading?** Check two things:
+
+1. Before 1.0, a `^0.6.0` range never picks up 0.7 — npm treats every 0.x minor as breaking. Bump the version in your `package.json` explicitly.
+2. If `OTEL_METRICS_EXPORTER=none` is set anywhere (a `.env` file, a base image, a shared chart — the Jaeger quick start suggests it), it now switches off your `metrics` block as well. The kit warns at startup when that happens.
+
+Added
+
+- **`container.id`**, detected at startup under Docker and on hosts with cgroup v1, from the official `@opentelemetry/resource-detector-container`. Most current Kubernetes clusters (containerd with cgroup v2, as on EKS, GKE and AKS) don't expose it to the process, so it is left out there. Setting `OTEL_NODE_RESOURCE_DETECTORS` still hands detection back to the SDK, which has no container detector.
+- **A Kubernetes recipe** that passes `k8s.pod.name`, `k8s.pod.uid`, `k8s.namespace.name`, `k8s.node.name` and `k8s.container.name` in through `OTEL_RESOURCE_ATTRIBUTES` and the downward API. Namespace, pod and container name are what the cluster's own metrics are labelled with, so they are what lines your telemetry up with CPU throttling, restarts and out-of-memory kills.
+
+Changed
+
+- **`OTEL_METRICS_EXPORTER=none` now wins over a `metrics` block.** It used to switch off only the default that follows traces, so writing a block, most often just to set `cpuUsage`, silently disabled the standard off switch. It now turns metrics off whatever the code says. Only `none` is read.
+- **`cpuUsage` follows the metrics that are actually exported.** With metrics switched off, the CPU observer is not registered, so it can no longer report into a meter provider your app set up for itself. The off switch covers what the kit exports; instrumentation metrics still go to a meter provider your app registered itself, as before.
+
+Documented
+
+- A `metrics` block without a URL keeps the collector derived from traces only when there is one. Otherwise it falls back to `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`, `OTEL_EXPORTER_OTLP_ENDPOINT`, or `localhost:4318`.
+- The CPU capacity examples now include the traces block they depend on for a collector.
+
 ## 0.6.0
 
 **Upgrading?** Most services need no change. Check four things:

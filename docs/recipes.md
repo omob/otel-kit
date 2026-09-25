@@ -118,7 +118,7 @@ Or start from nothing and name what you want. This is the better choice for anyt
 instrumentation: { only: [InstrumentationName.HTTP, InstrumentationName.UNDICI, InstrumentationName.PG, InstrumentationName.KAFKAJS] }
 ```
 
-**CPU limit from Kubernetes** — expose the container's limit through the downward API rather than repeating it in code. `divisor: 1m` gives millicores, so `500m` arrives as `500`. The pod name makes a readable `service.instance.id` in place of the kit's random one:
+**On Kubernetes** — tell the kit which pod and container it runs in, and what CPU it is allowed, through the downward API rather than repeating any of it in code. A process cannot see its own pod from inside, and on most current clusters it cannot see its container id either, so these are passed in. The cluster's own metrics — CPU throttling, restarts, out-of-memory kills — are labelled by namespace, pod and container name, so with the same three on your telemetry a backend can line the two up.
 
 ```yaml
 env:
@@ -131,20 +131,37 @@ env:
     valueFrom:
       fieldRef:
         fieldPath: metadata.name
+  - name: POD_UID
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.uid
+  - name: POD_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  - name: NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
   - name: OTEL_RESOURCE_ATTRIBUTES
-    value: service.instance.id=$(POD_NAME)
+    value: service.instance.id=$(POD_NAME),k8s.pod.name=$(POD_NAME),k8s.pod.uid=$(POD_UID),k8s.namespace.name=$(POD_NAMESPACE),k8s.node.name=$(NODE_NAME),k8s.container.name=wallet-service
 ```
+
+`k8s.container.name` is the `name` of this container in the pod spec; the downward API can't provide it, so write it in.
+
+Each variable has to be declared before the one that uses it, as here. `divisor: 1m` gives millicores, so a `500m` limit arrives as `500`. The pod name also makes a readable `service.instance.id` in place of the kit's random one.
 
 ```ts
 const millicores = Number(process.env.CPU_LIMIT_MILLICORES);
 
 Telemetry.start({
   serviceName: "wallet-service",
+  traces: { exporter: ExporterType.OTLP, otlp: { url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT } },
   metrics: { exporter: ExporterType.OTLP, cpuUsage: true },
   architecture: { cpuLimit: millicores > 0 ? millicores / 1000 : undefined },
 });
 ```
 
-CPU capacity needs the metrics block exporting somewhere; the limit alone predicts nothing. Only add `CPU_LIMIT_MILLICORES` to containers that have a CPU limit: without one, the downward API hands back the node's allocatable CPU, which is positive but is not what one replica may use, and the code above cannot tell the difference. `OTEL_RESOURCE_ATTRIBUTES` is read by resource detection, so with `resourceDetection: false` pass `resourceAttributes: { "service.instance.id": process.env.POD_NAME }` instead.
+CPU capacity needs metrics exporting somewhere; the limit alone predicts nothing. The `metrics` block above has no URL, so it goes wherever the traces go. Only add `CPU_LIMIT_MILLICORES` to containers that have a CPU limit: without one, the downward API hands back the node's allocatable CPU, which is positive but is not what one replica may use, and the code above cannot tell the difference. `OTEL_RESOURCE_ATTRIBUTES` is read by resource detection, so with `resourceDetection: false` pass the same attributes through `resourceAttributes` instead, for example `{ "service.instance.id": process.env.POD_NAME, "k8s.pod.name": process.env.POD_NAME }`.
 
 The model assumes one Node process per replica. Under `cluster` or PM2, each worker counts as a replica holding the whole container's limit, so capacity comes out overstated by the worker count. Don't use the pod name there either: the workers would share one id and their CPU series would collide.
