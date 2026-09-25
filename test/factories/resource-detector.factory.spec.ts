@@ -1,3 +1,4 @@
+import { containerDetector } from "@opentelemetry/resource-detector-container";
 import ResourceDetectorFactory from "../../src/factories/resource-detector.factory";
 
 describe("ResourceDetectorFactory", () => {
@@ -20,6 +21,10 @@ describe("ResourceDetectorFactory", () => {
     delete process.env.OTEL_NODE_RESOURCE_DETECTORS;
 
     expect(detectors).toBeUndefined();
-    expect(ResourceDetectorFactory.createDetectors()).toHaveLength(3);
+    expect(ResourceDetectorFactory.createDetectors()).toHaveLength(4);
+  });
+
+  it("detects the container the process runs in", () => {
+    expect(ResourceDetectorFactory.createDetectors()).toContain(containerDetector);
   });
 });

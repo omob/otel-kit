@@ -15,7 +15,7 @@ Only `serviceName` is required. Everything else has a working default.
 | `environment` | — | Shows as `deployment.environment.name`. |
 | `enabled` | `true` | `false` turns everything off and loads no SDK. |
 | `resourceAttributes` | `{}` | Extra attributes on every span, metric and log. `service.instance.id` defaults to a random id per process. To use something stable, such as the pod name, set it in `OTEL_RESOURCE_ATTRIBUTES`, which needs `resourceDetection` on, or here, which `OTEL_NODE_RESOURCE_DETECTORS=serviceinstance` or `all` would override. |
-| `resourceDetection` | `true` | Detects host and process details. Your command line, script path and user name are left out, because flags often carry secrets. If you set `OTEL_NODE_RESOURCE_DETECTORS`, the SDK runs exactly the detectors you list, and its `process` detector does include those three. |
+| `resourceDetection` | `true` | Detects the host, the process and, inside a container, `container.id`. Your command line, script path and user name are left out, because flags often carry secrets. If you set `OTEL_NODE_RESOURCE_DETECTORS`, the SDK runs exactly the detectors you list: its `process` detector does include those three, and it has no container detector. |
 | `runtimeMetrics` | `true` | Event loop, heap and GC metrics. They stay on under `instrumentation.only`. `false` turns them off, unless you also list the runtime instrumentation in `instrumentation.enable`. |
 
 **Traces**
@@ -37,7 +37,7 @@ Only `serviceName` is required. Everything else has a working default.
 
 | Option | Default | What it does |
 | --- | --- | --- |
-| `metrics` | follows `traces` | Leave it out and, when traces go over OTLP, metrics go to the same collector: see the table under [Metrics](https://github.com/omob/otel-kit/blob/main/README.md#metrics). An OTLP block without a URL keeps that collector and its headers. Set `OTEL_METRICS_EXPORTER=none` or `metrics: { exporter: ExporterType.NONE }` to turn the default off. |
+| `metrics` | follows `traces` | Leave it out and, when traces go over OTLP, metrics go to the same collector: see the table under [Metrics](https://github.com/omob/otel-kit/blob/main/README.md#metrics). An OTLP block without a URL keeps that collector and its headers when there is one. `OTEL_METRICS_EXPORTER=none` turns metrics off whatever is set here; so does `metrics: { exporter: ExporterType.NONE }`. |
 | `metrics.exporter` | `otlp` when traces go over OTLP, otherwise `none` | `none` · `console` · `otlp` · `gcp` · `prometheus` |
 | `metrics.exportIntervalMillis` | `30000` | How often metrics are pushed. Prometheus ignores it — it's pull-based. |
 | `metrics.prometheus` | `127.0.0.1:9464` | `host`, `port`, `endpoint`. Binds loopback by default — the endpoint is unauthenticated, so only widen it behind a private network. |

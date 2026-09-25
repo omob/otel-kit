@@ -40,10 +40,11 @@ Pass `diagLogger` to send it to your own logger instead of the console. With tha
 
 **Traces stop at your service** — a caller's trace doesn't continue into yours: they're probably using a propagation format you haven't listed in `propagators`.
 
-**No metrics arrive, though traces do.** Since 0.6 the kit sends metrics to your traces collector by default, and a failed send is silent unless `diagLogLevel` is set. Set `diagLogLevel: DiagLogLevel.WARN` to see why. The usual causes:
+**No metrics arrive.** Since 0.6 the kit sends metrics to your traces collector by default, and a failed send is silent unless `diagLogLevel` is set. Set `diagLogLevel: DiagLogLevel.WARN` to see why. The usual causes:
 
 - **The backend only stores traces**, as Jaeger does. Set `OTEL_METRICS_EXPORTER=none` to stop the attempts, or point a `metrics` block at a backend that takes them.
 - **Your auth is in `OTEL_EXPORTER_OTLP_TRACES_HEADERS` only.** It isn't copied to metrics; set `OTEL_EXPORTER_OTLP_METRICS_HEADERS` too.
+- **`OTEL_METRICS_EXPORTER=none` is set somewhere** — a `.env` file, a base image or a shared chart. Since 0.7 it switches off a `metrics` block too; look for the startup warning.
 - **Your traces URL doesn't end in `/v1/traces`.** The kit can't tell where metrics belong, so it sends none. Add a `metrics` block with the URL.
 
 **Metrics arrive, but two services share one `service.version`.** The version comes from the `package.json` your start script ran from. In a monorepo started from the root, that is the root's version for every service. Set `serviceVersion` in each service's config.

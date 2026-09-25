@@ -8,6 +8,11 @@ const METRICS_PATH = "/v1/metrics";
 
 class MetricConfigFactory {
   static createMetricConfig(config: ITelemetryConfig): IMetricConfig {
+    // the standard off switch has to work in an incident, whatever the code says
+    if (MetricConfigFactory.turnedOffByEnvironment()) {
+      return { exporter: ExporterType.NONE };
+    }
+
     const derived = MetricConfigFactory.fromTraces(config);
     const metrics = config.metrics;
 
@@ -26,7 +31,7 @@ class MetricConfigFactory {
   static fromTraces(config: ITelemetryConfig): IMetricConfig | undefined {
     const traces = config.traces;
 
-    if (traces?.exporter !== ExporterType.OTLP || MetricConfigFactory.turnedOffByEnvironment()) {
+    if (traces?.exporter !== ExporterType.OTLP) {
       return undefined;
     }
 

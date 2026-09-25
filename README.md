@@ -125,6 +125,8 @@ Every span, metric and log is stamped with who sent it, so a backend can tell se
 | `ritele.trace.sample_probability` | the chance this service keeps a trace it starts, when it exports traces; see [below](#describing-your-architecture) |
 | `telemetry.sdk.*` | the OpenTelemetry SDK's name, language and version |
 | `host.*`, `process.pid`, `process.runtime.*` | detected at startup |
+| `container.id` | detected at startup under Docker and on hosts with cgroup v1. Most current Kubernetes clusters (containerd with cgroup v2, as on EKS, GKE and AKS) don't expose it to the process, so it is left out there |
+| `k8s.pod.name`, `k8s.namespace.name`, `k8s.container.name`, … | not detected — pass them in through `OTEL_RESOURCE_ATTRIBUTES`, as the [Kubernetes recipe](https://github.com/omob/otel-kit/blob/main/docs/recipes.md) shows. Pod, namespace and container name are what the cluster's own metrics are labelled with, so they are the attributes to set |
 
 The detected process details leave out your command line, script path and user name, because flags often carry secrets.
 
@@ -235,9 +237,9 @@ Where exactly they go:
 | no URL in code or in either variable above | wherever your traces go: `OTEL_EXPORTER_OTLP_ENDPOINT` if set, otherwise the local default (`localhost:4318`, or `4317` for gRPC) |
 | a traces URL with any other path | nowhere — the kit can't guess, so metrics stay off |
 
-**To turn them off**, set `OTEL_METRICS_EXPORTER=none`, or pass `metrics: { exporter: ExporterType.NONE }`. Do this if your backend only takes traces (Jaeger, for example) or charges per metric series. The variable only switches off this default — it has no effect once you write a `metrics` block, and other values such as `console` are ignored.
+**To turn them off**, set `OTEL_METRICS_EXPORTER=none`, or pass `metrics: { exporter: ExporterType.NONE }`. Do this if your backend only takes traces (Jaeger, for example) or charges per metric series. The variable wins over anything in code, including a `metrics` block, so it works as an off switch during an incident; the kit prints a warning at startup when it overrides a block, so a leftover setting doesn't go unnoticed. Only `none` is read; other values such as `console` are ignored.
 
-**To change an option**, such as the interval or `cpuUsage`, write a `metrics` block with `exporter: ExporterType.OTLP` and no URL. It keeps the collector and headers worked out above. **To send them somewhere else**, give the block its own URL:
+**To change an option**, such as the interval or `cpuUsage`, write a `metrics` block with `exporter: ExporterType.OTLP` and no URL. It keeps the collector and headers worked out above. That only works when the table above finds a collector: if your traces URL has another path, or traces don't go over OTLP, a block without a URL falls back to `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`, `OTEL_EXPORTER_OTLP_ENDPOINT`, or else the local default (`localhost:4318`, or `4317` for gRPC). **To send them somewhere else**, give the block its own URL:
 
 ```ts
 metrics: {
@@ -323,6 +325,7 @@ To predict when a service runs out of CPU, a backend needs how much CPU each pro
 ```ts
 Telemetry.start({
   serviceName: "wallet-service",
+  traces: { exporter: ExporterType.OTLP, otlp: { url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT } },
   metrics: { exporter: ExporterType.OTLP, cpuUsage: true },
   architecture: { cpuLimit: 0.5 },
 });

@@ -1,3 +1,4 @@
+import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { envDetector, hostDetector, processDetector } from "@opentelemetry/resources";
 import type { ResourceDetector } from "@opentelemetry/resources";
 import { ProcessAttribute } from "../enums/process-attribute.enum";
@@ -11,7 +12,7 @@ class ResourceDetectorFactory {
       return undefined;
     }
 
-    return [envDetector, ResourceDetectorFactory.createProcessDetector(), hostDetector];
+    return [envDetector, ResourceDetectorFactory.createProcessDetector(), hostDetector, containerDetector];
   }
 
   // argv routinely carries secrets passed as flags, and the owner and script path identify the host
