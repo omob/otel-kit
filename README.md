@@ -58,10 +58,8 @@ Telemetry.start({
     sampleRatio: Number(process.env.OTEL_TRACES_SAMPLE_RATIO ?? 1),
   },
 
-  // metrics and logs stay off until you add their block. Uncomment to turn them on —
-  // you get HTTP latency, event loop and heap metrics, and your existing pino or winston
-  // output bridged with its trace id, without writing any instrumentation yourself.
-  // metrics: { exporter: ExporterType.OTLP, otlp: { url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT } },
+  // logs stay off until you add their block. Uncomment to bridge your existing pino or
+  // winston output, with its trace id, without changing how you log.
   // logs: { exporter: ExporterType.OTLP, otlp: { url: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT } },
 
   instrumentation: { ignoreIncomingPaths: ["/health"] },
@@ -78,13 +76,15 @@ traces: {
 }
 ```
 
+Once traces go over OTLP, **metrics start flowing to the same place too** — see [Metrics and logs](#metrics-and-logs) for what that sends and how to stop it.
+
 **Nothing listens on port 4318 unless you run something there.** If you point at a collector that is not up, every export fails with `ECONNREFUSED` and you see no error at all — OpenTelemetry's internal logging is off by default. The quickest real destination is Jaeger, which ingests OTLP directly:
 
 ```bash
 docker run -d --name jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:1.62.0
 ```
 
-Then set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/traces` and open the UI at http://localhost:16686.
+Then set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/traces` and open the UI at http://localhost:16686. Jaeger stores traces only, so also set `OTEL_METRICS_EXPORTER=none`, or the kit keeps trying to send it metrics it has nowhere to put.
 
 Load it before your app:
 
@@ -117,6 +117,24 @@ Without it, every request is one bare `GET` span with no `http.route`, so nothin
 Instrumentation can only patch libraries loaded *after* it starts. `--require` guarantees that.
 
 Importing it at the top of your entry file also works, as long as nothing you want traced is imported above it. One reordered import and tracing silently stops — hence the flag.
+
+## What every signal carries
+
+Every span, metric and log is stamped with who sent it, so a backend can tell services, versions and replicas apart:
+
+| Attribute | Where it comes from |
+| --- | --- |
+| `service.name` | `serviceName` |
+| `service.version` | `serviceVersion`, or, if you leave it out, the version in the `package.json` npm or pnpm ran your start script from — so each deploy shows up as a new version |
+| `service.instance.id` | a random id per process, so replicas are counted separately; set your own through `resourceAttributes` or `OTEL_RESOURCE_ATTRIBUTES`, such as the pod name |
+| `deployment.environment.name` | `environment` |
+| `ritele.trace.sample_probability` | the chance this service keeps a trace it starts, when it exports traces; see [below](#describing-your-architecture) |
+| `telemetry.sdk.*` | the OpenTelemetry SDK's name, language and version |
+| `host.*`, `process.pid`, `process.runtime.*` | detected at startup |
+
+The detected process details leave out your command line, script path and user name, because flags often carry secrets.
+
+**In a monorepo, check `service.version`.** A start script run from the repo root reports the root `package.json`'s version (often `0.0.0`) for every service. Set `serviceVersion` yourself there.
 
 ## Your own spans
 
@@ -173,6 +191,8 @@ Telemetry.start({
 
 `docTraceRatio` is the useful one. Sampling 1% of traffic keeps costs down, but a rarely-used dependency can go unseen for days. Documentation traces are a separate 2%, taken from the end of the range your sample ratio never reaches, always recorded, and marked in `tracestate` so every service downstream records them too. A backend can keep those at 100% and drop the rest, and the map stays complete.
 
+Each exporting service also carries `ritele.trace.sample_probability`: how likely it is to keep a trace **it starts**. That is `sampleRatio + docTraceRatio`, capped at 1 — the two ranges never overlap, so they simply add. With the settings above it is 0.03, so a backend can multiply a count of this service's root spans by about 33 to estimate the real number. It says nothing about traces that arrive from a caller: those are kept or dropped by the caller's decision. The attribute is left out when you pass your own `traces.sampler`, since the kit can't know its rate.
+
 The attribute names live under `ritele.*`, the namespace of [Ritele](https://github.com/omob/ritele); any other backend ignores them.
 
 Not every failure is a fault. A wrong password is an expected outcome, and marking it as a span error means your error rate tracks how often users mistype. Pass `isError` to say which throws actually count:
@@ -202,23 +222,51 @@ fastify.setErrorHandler((err, request, reply) =>
 
 ## Metrics and logs
 
-Both are off until you add their block. Neither needs code beyond the config.
+Neither needs code beyond the config.
 
-**Metrics** — add a `metrics` block:
+### Metrics
+
+**If your traces go over OTLP, metrics are already on.** You don't add anything: every 30 seconds the kit sends metrics to the same collector as your traces. Most collectors, and backends such as Ritele, accept both.
+
+They carry the headers you set in code (`traces.otlp.headers`) or in `OTEL_EXPORTER_OTLP_HEADERS`. If your auth lives only in `OTEL_EXPORTER_OTLP_TRACES_HEADERS`, it is not copied: set `OTEL_EXPORTER_OTLP_METRICS_HEADERS` as well, or the metrics are sent without it and rejected.
+
+Where exactly they go:
+
+| Your setup | Metrics are sent to |
+| --- | --- |
+| `traces.otlp.url` ends in `/v1/traces` | the same URL, ending in `/v1/metrics` instead |
+| the traces URL comes from `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | the same, from that variable |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` is set | that endpoint, with only the headers you gave it in `OTEL_EXPORTER_OTLP_METRICS_HEADERS` or `OTEL_EXPORTER_OTLP_HEADERS` — never your traces headers, since it may be another vendor |
+| gRPC | the same endpoint as traces |
+| no URL in code or in either variable above | wherever your traces go: `OTEL_EXPORTER_OTLP_ENDPOINT` if set, otherwise the local default (`localhost:4318`, or `4317` for gRPC) |
+| a traces URL with any other path | nowhere — the kit can't guess, so metrics stay off |
+
+**To turn them off**, set `OTEL_METRICS_EXPORTER=none`, or pass `metrics: { exporter: ExporterType.NONE }`. Do this if your backend only takes traces (Jaeger, for example) or charges per metric series. The variable only switches off this default — it has no effect once you write a `metrics` block, and other values such as `console` are ignored.
+
+**To change an option**, such as the interval or `cpuUsage`, write a `metrics` block with `exporter: ExporterType.OTLP` and no URL. It keeps the collector and headers worked out above. **To send them somewhere else**, give the block its own URL:
 
 ```ts
 metrics: {
   exporter: ExporterType.OTLP,
   otlp: { url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT },
-  exportIntervalMillis: 60_000,
+  exportIntervalMillis: 30_000,
 }
 ```
 
-You immediately get, with no instrumentation of your own:
+If your traces don't go over OTLP, metrics stay off until you add that block.
 
-- `http.server.duration` and `http.client.duration` — request latency in and out, by route and status
-- `nodejs.eventloop.delay.p50` / `p90` / `p99`, `nodejs.eventloop.utilization` — the event loop, which is what saturates first on a busy Node service
-- `v8js.memory.heap.*` — heap usage and limit
+**What you get**, with no instrumentation of your own:
+
+| Metric | What it tells you |
+| --- | --- |
+| `http.server.request.duration`, `http.client.request.duration` | Request latency in and out, in seconds, by route and status |
+| `nodejs.eventloop.delay.p50` / `p90` / `p99`, `nodejs.eventloop.utilization` | How busy the event loop is — usually the first thing to saturate on a Node service |
+| `v8js.memory.heap.*` | Heap usage against its limit |
+| `messaging.client.sent.messages`, `messaging.client.consumed.messages`, `messaging.process.duration` | Kafka throughput and handler time, if you use kafkajs |
+
+The event loop and heap metrics stay on even when you narrow things down with `instrumentation.only`. Set `runtimeMetrics: false` to drop them.
+
+> **Dashboards on `http.server.duration`?** That is the old name, in milliseconds, from earlier versions of the HTTP instrumentation. The one bundled here reports only `http.server.request.duration`, in seconds, and `OTEL_SEMCONV_STABILITY_OPT_IN` no longer switches it back. Point those dashboards and alerts at the new name.
 
 For a pull-based setup, swap the exporter and Prometheus scrapes you instead:
 
@@ -226,7 +274,9 @@ For a pull-based setup, swap the exporter and Prometheus scrapes you instead:
 metrics: { exporter: ExporterType.PROMETHEUS, prometheus: { port: 9464 } }
 ```
 
-**Logs** — add a `logs` block:
+### Logs
+
+Logs are off until you add a `logs` block:
 
 ```ts
 logs: { exporter: ExporterType.OTLP, otlp: { url: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT } }
@@ -238,7 +288,7 @@ Two things to weigh before turning logs on. Your log volume goes to two places, 
 
 ## Connection pools
 
-A pool's limit exists only inside your process — no database exporter can see `max: 5`. Register the pool and the package reports it under OpenTelemetry's standard names, so anything that speaks semantic conventions can use it:
+A slow query and a query stuck waiting for a free connection look the same from outside. The difference only shows inside your process, where the pool knows its limit (`max: 20`) and how many callers are queued. Register the pool and the kit reports it:
 
 ```ts
 import { observeConnectionPool } from "@omob/otel-kit";
@@ -257,11 +307,20 @@ observeConnectionPool({
 });
 ```
 
-Register the pool after `Telemetry.start()`. The metrics API resolves the meter provider at the moment you ask for it, so a pool registered first holds a no-op meter for the life of the process and reports nothing at all.
+Call it **after** `Telemetry.start()`. A pool registered earlier gets a do-nothing meter and reports nothing, for good.
 
-You get `db.client.connection.max`, `db.client.connection.count` split by `used` and `idle`, and `db.client.connection.pending_requests`. Call the returned `recordWait(millis)` when you acquire a connection to also populate `db.client.connection.wait_time`.
+You get:
 
-This is the number that tells you whether a slow query is slow, or just waiting: a pool pinned at its limit with requests queued means the bottleneck is your configuration, not the database. It needs the metrics block enabled, and works with any pool — Postgres, MySQL, Mongo, Redis — since you supply the reader.
+| Metric | What it tells you |
+| --- | --- |
+| `db.client.connection.max` | The pool's limit |
+| `db.client.connection.count`, split into `used` and `idle` | How much of it is in use |
+| `db.client.connection.pending_requests` | Callers waiting for a connection |
+| `db.client.connection.wait_time` | How long they waited, if you call the returned `recordWait(millis)` when you acquire one |
+
+A pool at its limit with a queue behind it means the bottleneck is your pool size, not the database. It works with any pool — Postgres, MySQL, Mongo, Redis — because you supply the `read` function.
+
+**Using `pg`?** The pg instrumentation also reports these metrics for `pg-pool`, under the same names. Its numbers are only right while you have a single pool: with two or more, its counts drift and can go negative. Register your pools here anyway, and have your backend read the `@omob/otel-kit` scope. Ritele prefers these measured numbers over `architecture.concurrency.pgPool`, which it only uses for a pool nothing measures.
 
 ## CPU capacity
 

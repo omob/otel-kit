@@ -125,7 +125,7 @@ describe("InstrumentationFactory only / esmHook", () => {
     expect(enabled).toContain(InstrumentationName.HTTP);
     expect(enabled).not.toContain(InstrumentationName.DNS);
     expect(enabled).not.toContain(InstrumentationName.NET);
-    expect(namesOf(list)).toEqual([InstrumentationName.HTTP]); // auto-instrumentations drops disabled entries entirely
+    expect(namesOf(list)).toEqual([InstrumentationName.HTTP, InstrumentationName.RUNTIME_NODE]); // auto-instrumentations drops disabled entries entirely
   });
 
   it("only: entries in enable are also allowed", () => {
@@ -139,7 +139,20 @@ describe("InstrumentationFactory only / esmHook", () => {
   it("only: turns on an instrumentation that is off by default", () => {
     expect(namesOf(InstrumentationFactory.createInstrumentations({ only: [InstrumentationName.FS] }))).toEqual([
       InstrumentationName.FS,
+      InstrumentationName.RUNTIME_NODE,
     ]);
+  });
+
+  it("keeps runtime metrics under only unless they are turned off", () => {
+    const only = { only: [InstrumentationName.HTTP] };
+
+    expect(namesOf(InstrumentationFactory.createInstrumentations(only))).toContain(InstrumentationName.RUNTIME_NODE);
+    expect(namesOf(InstrumentationFactory.createInstrumentations(only, false))).not.toContain(
+      InstrumentationName.RUNTIME_NODE
+    );
+    expect(namesOf(InstrumentationFactory.createInstrumentations({}, false))).not.toContain(
+      InstrumentationName.RUNTIME_NODE
+    );
   });
 
   it("keeps the rest of the sdk when @fastify/otel is not installed", () => {
