@@ -8,7 +8,7 @@ import { registerEsmHook } from "../utils/esm-hook";
 import { loadOptionalDependency } from "../utils/optional-dependency";
 
 class InstrumentationFactory {
-  static createInstrumentations(config: IInstrumentationConfig = {}): Instrumentation[] {
+  static createInstrumentations(config: IInstrumentationConfig = {}, runtimeMetrics = true): Instrumentation[] {
     const options: Record<string, unknown> = { ...config.config };
 
     // registering after the app has imported a module is too late to patch it
@@ -17,14 +17,17 @@ class InstrumentationFactory {
     }
 
     if (config.only) {
-      const allowed = new Set<string>([...config.only, ...(config.enable ?? [])]);
+      const runtime = runtimeMetrics ? [InstrumentationName.RUNTIME_NODE] : [];
+      const allowed = new Set<string>([...config.only, ...(config.enable ?? []), ...runtime]);
 
       for (const name of Object.values(InstrumentationName)) {
         options[name] = { ...(options[name] as object), enabled: allowed.has(name) };
       }
     }
 
-    for (const name of config.disable ?? []) {
+    const disabled = [...(config.disable ?? []), ...(runtimeMetrics ? [] : [InstrumentationName.RUNTIME_NODE])];
+
+    for (const name of disabled) {
       options[name] = { ...(options[name] as object), enabled: false };
     }
 

@@ -25,6 +25,8 @@ function run(env, args = ["--import", join(dir, "otel.mjs"), join(dir, "app.mjs"
 const on = run({});
 const off = run({ OTEL_KIT_TEST_ESM_HOOK: "false" });
 const restart = run({}, [join(dir, "restart.mjs")]);
+const health = run({ npm_package_version: "7.7.7" }, [join(dir, "health.mjs")]);
+const noRuntime = run({ OTEL_KIT_TEST_RUNTIME_METRICS: "false" }, [join(dir, "health.mjs")]);
 
 const checks = [
   ["doc-trace mark propagates over HTTP (tracestate header)", String(on.docMarkOnWire).includes("as=d")],
@@ -41,10 +43,18 @@ const checks = [
   ["http spans recorded before a restart", restart.beforeRestart === 2],
   ["http spans recorded after a restart", restart.afterRestart === 2],
   ["client and server spans linked after a restart", restart.linkedAfterRestart === true],
+  ["otlp traces alone export http.server.request.duration to /v1/metrics", health.metrics.includes("http.server.request.duration")],
+  ["otlp traces alone export nodejs.eventloop.delay.p99 under only: [HTTP]", health.metrics.includes("nodejs.eventloop.delay.p99")],
+  ["runtimeMetrics: false exports no runtime metrics", !noRuntime.metrics.some((name) => name.startsWith("nodejs.eventloop"))],
+  ["resource carries service.instance.id", typeof health.resource["service.instance.id"] === "string"],
+  ["resource carries service.version from npm_package_version", health.resource["service.version"] === "7.7.7"],
+  ["resource carries ritele.trace.sample_probability", health.resource["ritele.trace.sample_probability"] === 0.1],
+  ["resource carries telemetry.sdk.language", health.resource["telemetry.sdk.language"] === "nodejs"],
+  ["resource carries no process.command_args", !("process.command_args" in health.resource)],
 ];
 
 for (const [name, ok] of checks) console.log(`esm: ${ok ? "ok  " : "FAIL"} ${name}`);
 if (!checks.every(([, ok]) => ok)) {
-  console.error("with hook:", JSON.stringify(on), "\nwithout:", JSON.stringify(off), "\nrestart:", JSON.stringify(restart));
+  console.error("with hook:", JSON.stringify(on), "\nwithout:", JSON.stringify(off), "\nrestart:", JSON.stringify(restart), "\nhealth:", JSON.stringify(health), "\nno runtime:", JSON.stringify(noRuntime));
   process.exit(1);
 }

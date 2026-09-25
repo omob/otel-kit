@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.6.0
+
+**Upgrading?** Most services need no change. Check four things:
+
+1. **Traces go to a backend that doesn't take metrics** (Jaeger, for example)? Set `OTEL_METRICS_EXPORTER=none`. Otherwise the kit tries to send it metrics every 30 seconds, and every attempt fails — silently, unless `diagLogLevel` is set.
+2. **Auth only in `OTEL_EXPORTER_OTLP_TRACES_HEADERS`?** Set `OTEL_EXPORTER_OTLP_METRICS_HEADERS` too, or the new metrics are sent without it.
+3. **You pay per metric series or per request?** Metrics now export every 30 seconds instead of 60, and turn on by themselves when traces go over OTLP.
+4. **A monorepo started from the root?** Set `serviceVersion` per service; otherwise all of them report the root `package.json` version.
+
+Changed
+
+- **Metrics turn on with OTLP traces.** With `traces.exporter: otlp` and no `metrics` block, metrics go to the same collector, with the headers set in code or `OTEL_EXPORTER_OTLP_HEADERS`: the traces URL with `/v1/traces` swapped for `/v1/metrics`, the one in `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, or `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` if you set it. A traces URL with any other path sends no metrics. `OTEL_METRICS_EXPORTER=none` or `metrics: { exporter: ExporterType.NONE }` turns them off. An OTLP `metrics` block without a URL keeps that collector and its headers, so it can add `cpuUsage` or an interval on its own.
+- **Metrics export every 30 seconds, not 60**, so a one-minute chart is never two minutes behind. `metrics.exportIntervalMillis` sets it back.
+- **Runtime metrics stay on under `instrumentation.only`.** Event loop, heap and GC metrics used to vanish as soon as you listed your instrumentations. `runtimeMetrics: false` turns them off.
+- **Your command line no longer leaves the process.** The detected process details used to include `process.command`, `process.command_args` and `process.owner`: your argv, script path and user name, on every span. They are gone. If you set `OTEL_NODE_RESOURCE_DETECTORS`, the SDK's own detectors run as before and do include them.
+
+Added
+
+- **`service.version` fills itself in** from the `package.json` npm or pnpm ran your start script from, so each deploy shows as a new version without configuration.
+- **`ritele.trace.sample_probability`** on the resource: how likely this service is to keep a trace it starts, `sampleRatio + docTraceRatio` capped at 1. The two ranges never overlap, so they add. It is left out when traces aren't exported or you pass your own `traces.sampler`.
+- **`telemetry.sdk.*`** (the SDK's name, language and version) is back on the resource. The kit's own resource used to replace it.
+
+Documented
+
+- The HTTP latency metrics are `http.server.request.duration` and `http.client.request.duration`, in seconds. The bundled instrumentation reports nothing else, and `OTEL_SEMCONV_STABILITY_OPT_IN` no longer changes that.
+- The pg instrumentation reports pool metrics for `pg-pool`, but they are only right with a single pool. Register pools with `observeConnectionPool()` and read the `@omob/otel-kit` scope.
+- kafkajs reports `messaging.client.sent.messages`, `messaging.client.consumed.messages` and `messaging.process.duration`.
+
 ## 0.5.0
 
 Added

@@ -12,6 +12,8 @@ import MetricReaderFactory from "./metric-reader.factory";
 import AttributeSanitizerProcessor from "../processors/attribute-sanitizer.processor";
 import PeerResolutionProcessor from "../processors/peer-resolution.processor";
 import PropagatorFactory from "./propagator.factory";
+import MetricConfigFactory from "./metric-config.factory";
+import ResourceDetectorFactory from "./resource-detector.factory";
 import ResourceFactory from "./resource.factory";
 import SamplerFactory from "./sampler.factory";
 import TraceExporterFactory from "./trace-exporter.factory";
@@ -21,7 +23,7 @@ const DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT = 4_096;
 
 class SdkFactory {
   static createInstrumentations(config: ITelemetryConfig): Instrumentation[] {
-    return InstrumentationFactory.createInstrumentations(config.instrumentation);
+    return InstrumentationFactory.createInstrumentations(config.instrumentation, config.runtimeMetrics !== false);
   }
 
   static createPropagator(config: ITelemetryConfig): TextMapPropagator {
@@ -42,7 +44,7 @@ class SdkFactory {
     getInstrumentations: () => Instrumentation[] = () => SdkFactory.createInstrumentations(config)
   ): NodeSDK {
     const traces = config.traces ?? DISABLED_SIGNAL;
-    const metrics = config.metrics ?? DISABLED_SIGNAL;
+    const metrics = MetricConfigFactory.createMetricConfig(config);
     const traceExporter = TraceExporterFactory.createExporter(traces);
     const metricReader = MetricReaderFactory.createReader(metrics);
     const peers = config.architecture?.peers;
@@ -65,6 +67,7 @@ class SdkFactory {
     return new NodeSDK({
       resource,
       autoDetectResources: config.resourceDetection ?? true,
+      resourceDetectors: ResourceDetectorFactory.createDetectors(),
       sampler,
       spanLimits: { attributeValueLengthLimit: DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT, ...config.spanLimits },
       spanProcessors,

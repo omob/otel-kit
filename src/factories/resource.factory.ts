@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { diag } from "@opentelemetry/api";
-import { resourceFromAttributes } from "@opentelemetry/resources";
+import { defaultResource, resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_INSTANCE_ID, ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
 import type { Resource } from "@opentelemetry/resources";
 import { ArchitectureAttribute } from "../enums/architecture-attribute.enum";
+import { ExporterType } from "../enums/exporter-type.enum";
 import { IArchitectureConfig, ITelemetryConfig, ResourceAttributeValue } from "../telemetry.types";
 
 // still an incubating convention, whose subpath export only resolves under node16 module resolution
@@ -17,18 +18,35 @@ class ResourceFactory {
       [ATTR_SERVICE_INSTANCE_ID]: SERVICE_INSTANCE_ID,
       ...config.resourceAttributes,
       ...ResourceFactory.architectureAttributes(config.architecture),
+      ...ResourceFactory.sampleProbability(config),
       [ATTR_SERVICE_NAME]: config.serviceName,
     };
+    const serviceVersion = config.serviceVersion ?? process.env.npm_package_version;
 
-    if (config.serviceVersion) {
-      attributes[ATTR_SERVICE_VERSION] = config.serviceVersion;
+    if (serviceVersion) {
+      attributes[ATTR_SERVICE_VERSION] = serviceVersion;
     }
 
     if (config.environment) {
       attributes[ATTR_DEPLOYMENT_ENVIRONMENT_NAME] = config.environment;
     }
 
-    return resourceFromAttributes(attributes);
+    return defaultResource().merge(resourceFromAttributes(attributes));
+  }
+
+  // the doc-trace range never overlaps the ratio sampler's, so the two probabilities add rather than compound;
+  // a custom sampler's rate is unknown, and a guess would scale span counts wrongly
+  static sampleProbability(config: ITelemetryConfig): Record<string, ResourceAttributeValue> {
+    const traces = config.traces;
+
+    if (!traces || traces.exporter === ExporterType.NONE || traces.sampler) {
+      return {};
+    }
+
+    const sampleRatio = traces.sampleRatio ?? 1;
+    const docTraceRatio = config.architecture?.docTraceRatio ?? 0;
+
+    return { [ArchitectureAttribute.SAMPLE_PROBABILITY]: Math.min(1, sampleRatio + docTraceRatio) };
   }
 
   // architectural intent travels on the resource so every span from this process carries it

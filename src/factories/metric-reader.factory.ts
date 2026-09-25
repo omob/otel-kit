@@ -13,7 +13,8 @@ import { loadOptionalDependency } from "../utils/optional-dependency";
 import OtlpExporterFactory from "./otlp-exporter.factory";
 import { toGcpExporterOptions } from "../utils/gcp-credentials";
 
-const DEFAULT_EXPORT_INTERVAL_MILLIS = 60_000;
+// a 60 s interval leaves the newest point up to two minutes old when a one-minute bucket closes
+const DEFAULT_EXPORT_INTERVAL_MILLIS = 30_000;
 const GCP_MONITORING_MODULE = "@google-cloud/opentelemetry-cloud-monitoring-exporter";
 const PROMETHEUS_MODULE = "@opentelemetry/exporter-prometheus";
 // the exporter binds every interface when host is unset, exposing an unauthenticated scrape endpoint

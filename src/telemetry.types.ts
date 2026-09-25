@@ -149,6 +149,8 @@ export interface ITelemetryConfig {
   enabled?: boolean;
   resourceAttributes?: Record<string, ResourceAttributeValue>;
   resourceDetection?: boolean;
+  /** Event loop, heap and GC metrics from the runtime-node instrumentation. On by default, `instrumentation.only` included. */
+  runtimeMetrics?: boolean;
   spanLimits?: ISpanLimits;
   traces?: ITraceConfig;
   metrics?: IMetricConfig;

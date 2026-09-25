@@ -7,6 +7,7 @@ export enum ArchitectureAttribute {
   INTENDED_DEPENDENCIES = "ritele.intended_dependencies",
   CONCURRENCY_PREFIX = "ritele.concurrency.",
   CPU_LIMIT = "ritele.cpu.limit",
+  SAMPLE_PROBABILITY = "ritele.trace.sample_probability",
   // semantic conventions still list peer.service as incubating, whose subpath export only resolves under node16
   PEER_SERVICE = "peer.service",
 }
