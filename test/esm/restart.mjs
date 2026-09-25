@@ -2,12 +2,14 @@ import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-tr
 import { ExporterType, InstrumentationName, Telemetry } from "../../dist/index.js";
 
 let exporter;
+let processor;
 
 const start = () => {
   exporter = new InMemorySpanExporter();
+  processor = new SimpleSpanProcessor(exporter);
   Telemetry.start({
     serviceName: "restart-fixture",
-    traces: { exporter: ExporterType.NONE, additionalProcessors: [new SimpleSpanProcessor(exporter)] },
+    traces: { exporter: ExporterType.NONE, additionalProcessors: [processor] },
     instrumentation: { only: [InstrumentationName.HTTP] },
     handleShutdownSignals: false,
   });
@@ -24,7 +26,7 @@ const hit = () =>
 
 const httpSpans = async () => {
   await hit();
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await processor.forceFlush();
   return exporter.getFinishedSpans();
 };
 

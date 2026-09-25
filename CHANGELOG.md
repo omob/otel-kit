@@ -4,13 +4,13 @@
 
 Added
 
-- `metrics.cpuUsage` and `observeCpuUsage()` report `process.cpu.time` in seconds, one series per `cpu.mode`. The flag registers the observer after the SDK starts, so it cannot bind to the no-op meter. Off by default; leave it off where `@opentelemetry/host-metrics` already reports the same metric.
+- `metrics.cpuUsage` and `observeCpuUsage()` report `process.cpu.time` in seconds, one series per `cpu.mode`. The flag registers the observer after the SDK starts, so it cannot bind to the no-op meter. Off by default; leave it off where `@opentelemetry/host-metrics` or the host-metrics instrumentation already reports the same metric.
 - `architecture.cpuLimit`, the CPU limit of one replica in cores, emitted as `ritele.cpu.limit`. A non-positive or non-finite value is dropped with a `diag` warning, as `concurrency` limits are.
-- `service.instance.id` is on the resource by default, a random id generated once per process, since NodeSDK's default detectors never set it and a capacity model counts replicas by it. A value from `resourceAttributes` or `OTEL_RESOURCE_ATTRIBUTES` replaces it; see the `resourceAttributes` row in the configuration docs for which wins.
+- `service.instance.id` is on the resource by default, a random id generated once per process, since NodeSDK's default detectors never set it and a capacity model counts replicas by it. A value from `resourceAttributes` or `OTEL_RESOURCE_ATTRIBUTES` replaces it; see the `resourceAttributes` row in the configuration docs for which wins. The id changes every time the process starts, so a backend that copies resource attributes onto metric labels starts new series on each restart; set it to the pod name where that matters.
 
 Fixed
 
-- `Telemetry.start()` after `Telemetry.shutdown()` exported nothing. The API refuses a second registration of a global provider, so the new SDK's tracer, meter and logger providers were ignored in favour of the shut-down ones, and the new instrumentations could not patch modules the app had already loaded. Shutdown now releases the globals the kit registered, and only those, and a restart rebinds the instrumentations of the first start to the new SDK. A `start()` while a shutdown is still in progress is ignored with a `diag` warning.
+- `Telemetry.start()` after `Telemetry.shutdown()` exported nothing. The API refuses a second registration of a global provider, so the new SDK's tracer, meter and logger providers were ignored in favour of the shut-down ones, and the new instrumentations could not patch modules the app had already loaded. The kit now frees the globals it registered, and only those: its providers when shutdown is called, and its context manager and propagator at the next start, so requests still draining keep their trace headers. A restart rebinds the instrumentations of the first start to the new SDK, and may begin while the previous flush is still running. With `OTEL_SDK_DISABLED` set, the kit registers no globals, patches no modules and observes no CPU usage. Tracers, meters and handles obtained before a restart stay with the old SDK; see the configuration docs.
 
 ## 0.4.0
 

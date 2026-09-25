@@ -92,7 +92,7 @@ export interface IMetricConfig {
   otlp?: IOtlpOptions;
   gcp?: IGcpOptions;
   prometheus?: IPrometheusOptions;
-  /** Report `process.cpu.time` for this process. Leave off where `@opentelemetry/host-metrics` already reports it. */
+  /** Report `process.cpu.time` for this process. Leave off where host metrics already report it. */
   cpuUsage?: boolean;
 }
 

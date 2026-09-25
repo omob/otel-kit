@@ -40,7 +40,7 @@ Only `serviceName` is required. Everything else has a working default.
 | `metrics.exportIntervalMillis` | `60000` | How often metrics are pushed. Prometheus ignores it — it's pull-based. |
 | `metrics.prometheus` | `127.0.0.1:9464` | `host`, `port`, `endpoint`. Binds loopback by default — the endpoint is unauthenticated, so only widen it behind a private network. |
 | `metrics.views` | `[]` | Histogram buckets and cardinality limits. |
-| `metrics.cpuUsage` | `false` | Reports `process.cpu.time` in seconds, one series per `cpu.mode` (`user`, `system`). Leave it off if `@opentelemetry/host-metrics` already reports it, or you get two series for one process. |
+| `metrics.cpuUsage` | `false` | Reports `process.cpu.time` in seconds, one series per `cpu.mode` (`user`, `system`). Leave it off if `@opentelemetry/host-metrics` or the host-metrics instrumentation already reports it, or a model that sums the two series sees double the CPU. |
 | `logs.exporter` | `none` | `none` · `console` · `otlp` |
 
 **Instrumentation and propagation**
@@ -101,7 +101,17 @@ process.on("SIGINT", () => drain(130));
 
 Do not leave `handleShutdownSignals` on *and* call `Telemetry.shutdown()` from your own handler — one flush runs, both callers await it, but the ordering of your drain is no longer guaranteed.
 
-`Telemetry.start()` works again once a shutdown has completed, typically in tests; a `start()` while one is still in progress is ignored, so await it. The restarted SDK takes every new option except the instrumentation set: it keeps the instrumentations of the first start, because a new one cannot patch modules your app has already loaded. Shutdown releases only the globals the kit registered, so a provider, propagator or context manager your app set up itself stays in place.
+If the flush fails, `shutdown()` rejects and the kit keeps the SDK so you can call it again; its providers are already shut down, so it records nothing in the meantime.
+
+Shutdown frees the kit's tracer, meter and logger providers straight away, so your own can be registered. The context manager and propagator stay until the next `Telemetry.start()` that actually starts, so requests your app is still draining keep their trace headers; until then, a propagator or context manager your app registers itself is refused.
+
+`Telemetry.start()` works again after a shutdown, typically in tests, including while the previous flush is still running. A restart has three limits:
+
+- It keeps the instrumentations of the first start and ignores a changed `instrumentation` block, because a new instrumentation cannot patch modules your app has already loaded.
+- Tracers, meters and loggers your code obtained before the restart, and handles from `observeConnectionPool()` or `observeCpuUsage()`, stay bound to the old SDK and export nothing. Get them again after `start()`, or call `getTracer()` at the point of use.
+- A restart during a flush, including one that outlived `shutdownTimeoutMillis`, runs beside the old SDK until that flush ends; if the flush then fails, the old SDK is dropped rather than kept for a retry.
+
+The kit releases only the globals it registered itself, so a provider, propagator or context manager your app set up stays in place.
 
 ## Turning things off
 

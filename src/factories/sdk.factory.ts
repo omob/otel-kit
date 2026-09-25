@@ -1,5 +1,6 @@
 import type { ContextManager, TextMapPropagator } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import { getBooleanFromEnv } from "@opentelemetry/core";
 import type { Instrumentation } from "@opentelemetry/instrumentation";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor, SpanProcessor } from "@opentelemetry/sdk-trace-node";
@@ -25,6 +26,10 @@ class SdkFactory {
 
   static createPropagator(config: ITelemetryConfig): TextMapPropagator {
     return PropagatorFactory.createPropagator(config.propagators);
+  }
+
+  static isDisabledByEnvironment(): boolean {
+    return getBooleanFromEnv("OTEL_SDK_DISABLED");
   }
 
   static createContextManager(): ContextManager {
@@ -66,7 +71,7 @@ class SdkFactory {
       metricReaders: metricReader ? [metricReader] : [],
       views: metrics.views ?? [],
       logRecordProcessors,
-      instrumentations: getInstrumentations(),
+      instrumentations: SdkFactory.isDisabledByEnvironment() ? [] : getInstrumentations(),
       // sdk-node treats null as "do not register" at runtime, but its type leaves null out
       contextManager: null as unknown as ContextManager,
       textMapPropagator: null,

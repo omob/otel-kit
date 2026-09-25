@@ -17,6 +17,8 @@ describe("package entry point", () => {
 
         expect(() => require("../src/index")).not.toThrow();
       });
+
+      jest.dontMock(sdkPackage);
     }
   );
 

@@ -52,6 +52,24 @@ const withFakeInstrumentation = () => {
   return { FreshTelemetry, instrumentation, create };
 };
 
+const releaseAllGlobals = () => {
+  const { context, metrics, propagation, trace } = require("@opentelemetry/api");
+  const { logs } = require("@opentelemetry/api-logs");
+
+  [trace, metrics, logs, propagation, context].forEach((api) => api.disable());
+};
+
+const freshTelemetryWithCleanGlobals = () => {
+  let FreshTelemetry = Telemetry;
+
+  releaseAllGlobals();
+  jest.isolateModules(() => {
+    FreshTelemetry = require("../../src/services/telemetry.service").default;
+  });
+
+  return FreshTelemetry;
+};
+
 afterEach(() => Telemetry.shutdown());
 
 describe("Telemetry.start", () => {
@@ -260,50 +278,111 @@ describe("Telemetry.shutdown", () => {
     return FreshTelemetry.shutdown();
   });
 
-  it("ignores a start while a shutdown is still in progress", async () => {
+  it("starts at once during a shutdown the caller did not await, and a later shutdown stops it", async () => {
     Telemetry.start(silentConfig);
     const pending = Telemetry.shutdown();
 
     Telemetry.start(silentConfig);
 
-    expect(Telemetry.isStarted).toBe(false);
-
-    await pending;
-    Telemetry.start(silentConfig);
-
     expect(Telemetry.isStarted).toBe(true);
-  });
 
-  it("leaves a provider the host registered itself in place", async () => {
-    const { metrics } = require("@opentelemetry/api");
-    const { MeterProvider } = require("@opentelemetry/sdk-metrics");
-    const hostProvider = new MeterProvider();
-
-    metrics.setGlobalMeterProvider(hostProvider);
-    Telemetry.start(silentConfig);
     await Telemetry.shutdown();
+    await pending;
 
-    expect(metrics.getMeterProvider()).toBe(hostProvider);
-
-    metrics.disable();
+    expect(Telemetry.isStarted).toBe(false);
   });
 
-  it("leaves a context manager and propagator the host registered itself in place", async () => {
+  it("frees the provider globals at shutdown so the host can register its own", async () => {
+    const { trace } = require("@opentelemetry/api");
+    const { BasicTracerProvider } = require("@opentelemetry/sdk-trace-base");
+    const FreshTelemetry = freshTelemetryWithCleanGlobals();
+    const hostProvider = new BasicTracerProvider();
+
+    FreshTelemetry.start(silentConfig);
+    await FreshTelemetry.shutdown();
+
+    trace.setGlobalTracerProvider(hostProvider);
+
+    expect(trace.getTracerProvider().getDelegate()).toBe(hostProvider);
+
+    releaseAllGlobals();
+  });
+
+  it("keeps context and propagation working after the flush, for a host still draining requests", async () => {
     const { context, propagation, createContextKey, ROOT_CONTEXT } = require("@opentelemetry/api");
+    const FreshTelemetry = freshTelemetryWithCleanGlobals();
+    const key = createContextKey("request");
+
+    FreshTelemetry.start(silentConfig);
+    await FreshTelemetry.shutdown();
+
+    expect(context.with(ROOT_CONTEXT.setValue(key, "in flight"), () => context.active().getValue(key))).toBe("in flight");
+    expect(propagation.fields()).toContain("traceparent");
+
+    releaseAllGlobals();
+  });
+
+  it("leaves globals the host registered itself in place across a restart", async () => {
+    const { context, propagation, metrics, createContextKey, ROOT_CONTEXT } = require("@opentelemetry/api");
     const { AsyncLocalStorageContextManager } = require("@opentelemetry/context-async-hooks");
     const { W3CBaggagePropagator } = require("@opentelemetry/core");
+    const { MeterProvider } = require("@opentelemetry/sdk-metrics");
+    const FreshTelemetry = freshTelemetryWithCleanGlobals();
+    const hostMeterProvider = new MeterProvider();
     const key = createContextKey("host");
-    const hostManager = new AsyncLocalStorageContextManager().enable();
 
-    context.setGlobalContextManager(hostManager);
+    metrics.setGlobalMeterProvider(hostMeterProvider);
+    context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
     propagation.setGlobalPropagator(new W3CBaggagePropagator());
-    Telemetry.start(silentConfig);
-    await Telemetry.shutdown();
 
+    FreshTelemetry.start(silentConfig);
+    await FreshTelemetry.shutdown();
+    FreshTelemetry.start(silentConfig);
+    await FreshTelemetry.shutdown();
+
+    expect(metrics.getMeterProvider()).toBe(hostMeterProvider);
     expect(context.with(ROOT_CONTEXT.setValue(key, "kept"), () => context.active().getValue(key))).toBe("kept");
     expect(propagation.fields()).toEqual(["baggage"]);
 
-    context.disable();
-    propagation.disable();
+    releaseAllGlobals();
+  });
+
+  it("registers no context or propagation when OTEL_SDK_DISABLED is set", async () => {
+    const { propagation } = require("@opentelemetry/api");
+    const FreshTelemetry = freshTelemetryWithCleanGlobals();
+
+    process.env.OTEL_SDK_DISABLED = "true";
+    FreshTelemetry.start(silentConfig);
+    delete process.env.OTEL_SDK_DISABLED;
+
+    expect(propagation.fields()).toEqual([]);
+
+    await FreshTelemetry.shutdown();
+    releaseAllGlobals();
+  });
+
+  it("patches nothing when OTEL_SDK_DISABLED is set", async () => {
+    const { FreshTelemetry, create } = withFakeInstrumentation();
+
+    process.env.OTEL_SDK_DISABLED = "true";
+    FreshTelemetry.start(silentConfig);
+    delete process.env.OTEL_SDK_DISABLED;
+
+    expect(create).not.toHaveBeenCalled();
+
+    await FreshTelemetry.shutdown();
+    create.mockRestore();
+  });
+
+  it("observes no cpu usage when OTEL_SDK_DISABLED is set, so nothing reaches a host's meter provider", async () => {
+    const observe = jest.spyOn(require("../../src/services/cpu-usage.service"), "observeCpuUsage");
+
+    process.env.OTEL_SDK_DISABLED = "true";
+    Telemetry.start({ ...silentConfig, metrics: { exporter: ExporterType.NONE, cpuUsage: true } });
+    delete process.env.OTEL_SDK_DISABLED;
+
+    expect(observe).not.toHaveBeenCalled();
+
+    observe.mockRestore();
   });
 });
