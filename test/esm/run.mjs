@@ -51,6 +51,8 @@ const checks = [
   ["resource carries ritele.trace.sample_probability", health.resource["ritele.trace.sample_probability"] === 0.1],
   ["resource carries telemetry.sdk.language", health.resource["telemetry.sdk.language"] === "nodejs"],
   ["resource carries no process.command_args", !("process.command_args" in health.resource)],
+  ["resource carries no process.executable.path", !("process.executable.path" in health.resource)],
+  ["resource carries no process.executable.name", !("process.executable.name" in health.resource)],
 ];
 
 for (const [name, ok] of checks) console.log(`esm: ${ok ? "ok  " : "FAIL"} ${name}`);

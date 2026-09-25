@@ -15,7 +15,7 @@ Only `serviceName` is required. Everything else has a working default.
 | `environment` | — | Shows as `deployment.environment.name`. |
 | `enabled` | `true` | `false` turns everything off and loads no SDK. |
 | `resourceAttributes` | `{}` | Extra attributes on every span, metric and log. `service.instance.id` defaults to a random id per process. To use something stable, such as the pod name, set it in `OTEL_RESOURCE_ATTRIBUTES`, which needs `resourceDetection` on, or here, which `OTEL_NODE_RESOURCE_DETECTORS=serviceinstance` or `all` would override. |
-| `resourceDetection` | `true` | Detects the host, the process and, inside a container, `container.id`. Your command line, script path and user name are left out, because flags often carry secrets. If you set `OTEL_NODE_RESOURCE_DETECTORS`, the SDK runs exactly the detectors you list: its `process` detector does include those three, and it has no container detector. |
+| `resourceDetection` | `true` | Detects the host, the process and, inside a container, `container.id`. Your command line, the script and `node` binary paths, the executable name and your user name are left out: flags often carry secrets, and paths such as `/Users/<you>/.nvm/…` name the user. If you set `OTEL_NODE_RESOURCE_DETECTORS`, the SDK runs exactly the detectors you list: its `process` detector does include all of these, and it has no container detector. `host.name` is always sent, and on a Mac usually carries the owner's first name. |
 | `runtimeMetrics` | `true` | Event loop, heap and GC metrics. They stay on under `instrumentation.only`. `false` turns them off, unless you also list the runtime instrumentation in `instrumentation.enable`. |
 
 **Traces**

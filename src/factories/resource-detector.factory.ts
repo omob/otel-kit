@@ -15,7 +15,7 @@ class ResourceDetectorFactory {
     return [envDetector, ResourceDetectorFactory.createProcessDetector(), hostDetector, containerDetector];
   }
 
-  // argv routinely carries secrets passed as flags, and the owner and script path identify the host
+  // argv routinely carries secrets passed as flags, and the owner and the script and binary paths name the user
   static createProcessDetector(): ResourceDetector {
     return {
       detect: (config) => {

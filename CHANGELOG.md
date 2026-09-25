@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1
+
+Changed
+
+- **The `node` binary's path no longer leaves the process.** The detected process details still carried `process.executable.path`, such as `/Users/<you>/.nvm/versions/node/v20.19.6/bin/node`, which names the user, and `process.executable.name`, which comes from `process.title` and is often that same full path, whenever node is started by its absolute path (systemd, pm2, a Docker `CMD ["/usr/local/bin/node", …]`). Both are now left out, alongside the command line, script path and user name that 0.6.0 dropped. `process.runtime.*` still reports the Node version. If you set `process.title` to tell workers apart, pass that label through `resourceAttributes` instead.
+
 ## 0.7.0
 
 **Upgrading?** Check two things:

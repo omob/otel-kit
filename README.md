@@ -128,7 +128,7 @@ Every span, metric and log is stamped with who sent it, so a backend can tell se
 | `container.id` | detected at startup under Docker and on hosts with cgroup v1. Most current Kubernetes clusters (containerd with cgroup v2, as on EKS, GKE and AKS) don't expose it to the process, so it is left out there |
 | `k8s.pod.name`, `k8s.namespace.name`, `k8s.container.name`, … | not detected — pass them in through `OTEL_RESOURCE_ATTRIBUTES`, as the [Kubernetes recipe](https://github.com/omob/otel-kit/blob/main/docs/recipes.md) shows. Pod, namespace and container name are what the cluster's own metrics are labelled with, so they are the attributes to set |
 
-The detected process details leave out your command line, script path and user name, because flags often carry secrets.
+The detected process details leave out your command line, the paths to your script and to the `node` binary, and your user name: flags often carry secrets, and paths such as `/Users/<you>/.nvm/…` name the user. `host.name` is kept, because backends need it to tell machines apart — but on a Mac it is usually named after its owner (`Ada-MacBook-Pro.local`), so set `resourceDetection: false` on developer laptops that export to a shared backend.
 
 **In a monorepo, check `service.version`.** A start script run from the repo root reports the root `package.json`'s version (often `0.0.0`) for every service. Set `serviceVersion` yourself there.
 
