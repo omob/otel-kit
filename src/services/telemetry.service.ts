@@ -13,13 +13,15 @@ import { logs } from "@opentelemetry/api-logs";
 import type { Instrumentation } from "@opentelemetry/instrumentation";
 import type { NodeSDK } from "@opentelemetry/sdk-node";
 import { ExporterType } from "../enums/exporter-type.enum";
+import { InstrumentationName } from "../enums/instrumentation-name.enum";
 import { TelemetryErrorCode } from "../enums/telemetry-error-code.enum";
 import { TelemetryGlobal } from "../enums/telemetry-global.enum";
 import TelemetryConfigError from "../errors/telemetry-config.error";
 import MetricConfigFactory from "../factories/metric-config.factory";
 import type SdkFactory from "../factories/sdk.factory";
-import { ICpuUsageHandle, ITelemetryConfig } from "../telemetry.types";
+import { IMetricObserverHandle, ITelemetryConfig } from "../telemetry.types";
 import { observeCpuUsage } from "./cpu-usage.service";
+import { observeHeapLimit } from "./heap-limit.service";
 
 const DEFAULT_SHUTDOWN_TIMEOUT_MILLIS = 5_000;
 const SHUTDOWN_SIGNALS: NodeJS.Signals[] = ["SIGTERM", "SIGINT"];
@@ -35,7 +37,7 @@ const RELEASE_GLOBAL: Record<TelemetryGlobal, () => void> = {
 class TelemetryService {
   private sdk?: NodeSDK;
   private shutdownPromise?: Promise<void>;
-  private cpuUsage?: ICpuUsageHandle;
+  private observers: IMetricObserverHandle[] = [];
   private instrumentations?: Instrumentation[];
   private ownedGlobals: TelemetryGlobal[] = [];
   private startCount = 0;
@@ -61,23 +63,24 @@ class TelemetryService {
       return this.shutdownPromise ?? Promise.resolve();
     }
 
-    const cpuUsage = this.cpuUsage;
+    const observers = this.observers;
+    const stopObservers = () => observers.forEach((observer) => observer.stop());
     const startCountAtShutdown = this.startCount;
 
     this.sdk = undefined;
-    this.cpuUsage = undefined;
+    this.observers = [];
     this.removeShutdownHandlers();
     // the flush does not need them, and freeing them now lets a start() during the flush register its own
     this.releaseProviders();
 
     this.shutdownPromise = Promise.race([sdk.shutdown(), this.expireAfter(timeoutMillis)]).then(
-      () => cpuUsage?.stop(),
+      stopObservers,
       (error) => {
         if (this.startCount === startCountAtShutdown) {
           this.sdk = sdk;
-          this.cpuUsage = cpuUsage;
+          this.observers = observers;
         } else {
-          cpuUsage?.stop();
+          stopObservers();
         }
 
         throw error;
@@ -134,8 +137,12 @@ class TelemetryService {
       console.warn("@omob/otel-kit exports no metrics: OTEL_METRICS_EXPORTER=none overrides the metrics block in code");
     }
 
-    if (sdkEnabled && metrics.exporter !== ExporterType.NONE && metrics.cpuUsage) {
-      this.cpuUsage = observeCpuUsage();
+    // a host that registered its own meter provider first keeps it, and the kit's observers must not report into it
+    if (this.ownedGlobals.includes(TelemetryGlobal.METER_PROVIDER)) {
+      this.observers = [
+        ...(metrics.cpuUsage ? [observeCpuUsage()] : []),
+        ...(TelemetryService.runtimeMetricsOn(config) ? [observeHeapLimit()] : []),
+      ];
     }
 
     if (config.handleShutdownSignals !== false) {
@@ -161,6 +168,12 @@ class TelemetryService {
       [TelemetryGlobal.METER_PROVIDER]: metrics.getMeterProvider(),
       [TelemetryGlobal.LOGGER_PROVIDER]: logs.getLoggerProvider(),
     };
+  }
+
+  private static runtimeMetricsOn(config: ITelemetryConfig): boolean {
+    const disabled = config.instrumentation?.disable ?? [];
+
+    return config.runtimeMetrics !== false && !disabled.includes(InstrumentationName.RUNTIME_NODE);
   }
 
   private releaseProviders(): void {

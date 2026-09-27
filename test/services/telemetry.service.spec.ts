@@ -1,3 +1,4 @@
+import { InstrumentationName } from "../../src/enums/instrumentation-name.enum";
 import { ExporterType } from "../../src/enums/exporter-type.enum";
 import { TelemetryErrorCode } from "../../src/enums/telemetry-error-code.enum";
 import Telemetry from "../../src/services/telemetry.service";
@@ -182,6 +183,81 @@ describe("Telemetry cpu usage", () => {
     const observe = jest.spyOn(cpuUsageService, "observeCpuUsage");
 
     Telemetry.start({ ...silentConfig, metrics: { exporter: ExporterType.NONE, cpuUsage } });
+
+    expect(observe).not.toHaveBeenCalled();
+  });
+});
+
+describe("Telemetry heap limit", () => {
+  const heapLimitService = require("../../src/services/heap-limit.service");
+  const exporting: ITelemetryConfig = {
+    ...silentConfig,
+    metrics: { exporter: ExporterType.OTLP, otlp: { url: "http://127.0.0.1:9/v1/metrics" } },
+  };
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it("reports the heap limit with the runtime metrics, and stops it on shutdown", async () => {
+    const stop = jest.fn();
+    const observe = jest.spyOn(heapLimitService, "observeHeapLimit").mockReturnValue({ stop });
+
+    Telemetry.start(exporting);
+
+    expect(observe).toHaveBeenCalledTimes(1);
+
+    await Telemetry.shutdown();
+
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("observes nothing into a meter provider the host registered first", async () => {
+    const { metrics } = require("@opentelemetry/api");
+    const { MeterProvider } = require("@opentelemetry/sdk-metrics");
+    const observe = jest.spyOn(heapLimitService, "observeHeapLimit");
+
+    metrics.disable();
+    metrics.setGlobalMeterProvider(new MeterProvider());
+
+    Telemetry.start(exporting);
+
+    expect(Telemetry.isStarted).toBe(true);
+    expect(observe).not.toHaveBeenCalled();
+
+    await Telemetry.shutdown();
+    metrics.disable();
+  });
+
+  it("keeps both observers for a retry when the flush fails", async () => {
+    const cpuStop = jest.fn();
+    const heapStop = jest.fn();
+    jest.spyOn(require("../../src/services/cpu-usage.service"), "observeCpuUsage").mockReturnValue({ stop: cpuStop });
+    jest.spyOn(heapLimitService, "observeHeapLimit").mockReturnValue({ stop: heapStop });
+    const { NodeSDK } = require("@opentelemetry/sdk-node");
+    jest.spyOn(NodeSDK.prototype, "shutdown").mockRejectedValueOnce(new Error("exporter down"));
+
+    Telemetry.start({ ...exporting, metrics: { ...exporting.metrics!, cpuUsage: true } });
+
+    await expect(Telemetry.shutdown()).rejects.toThrow("exporter down");
+    expect(cpuStop).not.toHaveBeenCalled();
+    expect(heapStop).not.toHaveBeenCalled();
+
+    await Telemetry.shutdown();
+
+    expect(cpuStop).toHaveBeenCalledTimes(1);
+    expect(heapStop).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["runtimeMetrics is false", { ...exporting, runtimeMetrics: false }],
+    [
+      "the runtime instrumentation is disabled",
+      { ...exporting, instrumentation: { disable: [InstrumentationName.RUNTIME_NODE] } },
+    ],
+    ["metrics are not exported", silentConfig],
+  ])("leaves the heap limit out when %s", (_, config) => {
+    const observe = jest.spyOn(heapLimitService, "observeHeapLimit");
+
+    Telemetry.start(config);
 
     expect(observe).not.toHaveBeenCalled();
   });

@@ -193,9 +193,11 @@ export interface ICpuUsageReading {
   system: number;
 }
 
-export interface ICpuUsageHandle {
+export interface IMetricObserverHandle {
   stop: () => void;
 }
+
+export type ICpuUsageHandle = IMetricObserverHandle;
 
 export interface IWithSpanOptions extends SpanOptions {
   tracer?: Tracer;

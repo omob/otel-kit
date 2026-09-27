@@ -260,10 +260,11 @@ If your traces don't go over OTLP, metrics stay off until you add that block.
 | --- | --- |
 | `http.server.request.duration`, `http.client.request.duration` | Request latency in and out, in seconds, by route and status |
 | `nodejs.eventloop.delay.p50` / `p90` / `p99`, `nodejs.eventloop.utilization` | How busy the event loop is — usually the first thing to saturate on a Node service |
-| `v8js.memory.heap.*` | Heap usage against its limit |
+| `v8js.memory.heap.used`, `v8js.memory.heap.space.*` | How much of the heap is in use, per heap space |
+| `ritele.v8js.memory.heap.limit` | The heap's ceiling, in bytes — the size at which Node runs out of memory. Chart `v8js.memory.heap.used` against it to see how close a service is. OpenTelemetry has no standard name for this (its old `v8js.memory.heap.limit` meant something else and is retired), so it lives under `ritele.*` |
 | `messaging.client.sent.messages`, `messaging.client.consumed.messages`, `messaging.process.duration` | Kafka throughput and handler time, if you use kafkajs |
 
-The event loop and heap metrics stay on even when you narrow things down with `instrumentation.only`. Set `runtimeMetrics: false` to drop them.
+The event loop and heap metrics, the heap ceiling included, stay on even when you narrow things down with `instrumentation.only`. Set `runtimeMetrics: false` to drop them.
 
 > **Dashboards on `http.server.duration`?** That is the old name, in milliseconds, from earlier versions of the HTTP instrumentation. The one bundled here reports only `http.server.request.duration`, in seconds, and `OTEL_SEMCONV_STABILITY_OPT_IN` no longer switches it back. Point those dashboards and alerts at the new name.
 

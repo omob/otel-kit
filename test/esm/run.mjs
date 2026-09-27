@@ -50,6 +50,8 @@ const checks = [
   ["otlp traces alone export http.server.request.duration to /v1/metrics", health.metrics.includes("http.server.request.duration")],
   ["otlp traces alone export nodejs.eventloop.delay.p99 under only: [HTTP]", health.metrics.includes("nodejs.eventloop.delay.p99")],
   ["runtimeMetrics: false exports no runtime metrics", !noRuntime.metrics.some((name) => name.startsWith("nodejs.eventloop"))],
+  ["otlp traces alone export the V8 heap limit", health.metrics.includes("ritele.v8js.memory.heap.limit")],
+  ["runtimeMetrics: false exports no heap limit", !noRuntime.metrics.includes("ritele.v8js.memory.heap.limit")],
   ["resource carries service.instance.id", typeof health.resource["service.instance.id"] === "string"],
   ["resource carries service.version from npm_package_version", health.resource["service.version"] === "7.7.7"],
   ["resource carries ritele.trace.sample_probability", health.resource["ritele.trace.sample_probability"] === 0.1],
