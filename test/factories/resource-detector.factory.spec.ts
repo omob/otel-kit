@@ -103,6 +103,8 @@ describe("ResourceDetectorFactory", () => {
     ["host, bogus", 1],
     ["all,none", 6],
   ])("resolves OTEL_NODE_RESOURCE_DETECTORS=%p through the kit's own filtered detectors", (value, count) => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
     process.env.OTEL_NODE_RESOURCE_DETECTORS = value;
 
     try {
@@ -110,8 +112,10 @@ describe("ResourceDetectorFactory", () => {
 
       expect(detectors).toHaveLength(count);
       expect(detectors).not.toContain(hostDetector);
+      expect(warn.mock.calls.length > 0).toBe(value.includes("bogus"));
     } finally {
       delete process.env.OTEL_NODE_RESOURCE_DETECTORS;
+      warn.mockRestore();
     }
   });
 

@@ -24,7 +24,9 @@ Only `serviceName` is required. Everything else has a working default.
 | Option | Default | What it does |
 | --- | --- | --- |
 | `traces.exporter` | `none` | `none` · `console` · `otlp` · `gcp` |
-| `traces.sampleRatio` | keep all | `0.1` keeps 10%. Children follow their parent's decision. |
+| `traces.sampleRatio` | keep all | `0.1` keeps 10%. Children follow their parent's decision. If you leave it out, the kit reads the standard `OTEL_TRACES_SAMPLER` and `OTEL_TRACES_SAMPLER_ARG`: a ratio, or `always_on`/`always_off`. The kit's sampler always follows a sampled caller, so `always_off` stops traces this service starts, not ones it continues, and `architecture.docTraceRatio` still records its documentation traces. A value it can't use is ignored with a warning. |
+| `traces.redactPathSegments` | `true` | Masks account numbers, emails, UUIDs, tokens and document numbers in `url.path`, `url.query` and `url.full`, as `*`. `http.route` keeps the template. Separate from `sanitizeAttributes`, so turning one off leaves the other on. Short technical names with digits (`sha256`) are masked too; ids made only of letters, under 24 characters, are not. |
+| `traces.redactQuery` | `QueryRedaction.MASK` | What happens to query strings. `MASK` masks the values that look like identifiers, along with paths, and keeps the rest; `DROP` removes query strings (and fragments) from `url.query`, `url.full` and `url.path`, even with `redactPathSegments: false`, for values such as names that no rule can recognise. |
 | `traces.sampler` | — | A sampler of your own. Takes precedence over `sampleRatio`. |
 | `traces.otlp.url` | — | Collector endpoint. Also takes `headers` and `timeoutMillis`. |
 | `traces.otlp.protocol` | `http/protobuf` | `http/protobuf` · `http/json` · `grpc` |
@@ -38,7 +40,7 @@ Only `serviceName` is required. Everything else has a working default.
 
 | Option | Default | What it does |
 | --- | --- | --- |
-| `metrics` | follows `traces` | Leave it out and, when traces go over OTLP, metrics go to the same collector: see the table under [Metrics](https://github.com/omob/otel-kit/blob/main/README.md#metrics). An OTLP block without a URL keeps that collector and its headers when there is one. `OTEL_METRICS_EXPORTER=none` turns metrics off whatever is set here; so does `metrics: { exporter: ExporterType.NONE }`. |
+| `metrics` | follows `traces` | Leave it out and, when traces go over OTLP, metrics go to the same collector: see the table under [Metrics](https://github.com/omob/otel-kit/blob/main/README.md#metrics). An OTLP block without a URL keeps that collector and its headers; with none to keep, it uses `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT`, and otherwise sends nothing and warns. `OTEL_METRICS_EXPORTER=none` turns metrics off whatever is set here; so does `metrics: { exporter: ExporterType.NONE }`. |
 | `metrics.exporter` | `otlp` when traces go over OTLP, otherwise `none` | `none` · `console` · `otlp` · `gcp` · `prometheus` |
 | `metrics.exportIntervalMillis` | `30000` | How often metrics are pushed. Prometheus ignores it — it's pull-based. |
 | `metrics.prometheus` | `127.0.0.1:9464` | `host`, `port`, `endpoint`. Binds loopback by default — the endpoint is unauthenticated, so only widen it behind a private network. |
@@ -66,7 +68,7 @@ Only `serviceName` is required. Everything else has a working default.
 | `architecture.component` | unset | `{ type, layer, domain, owner }` describing this service. Emitted as resource attributes `ritele.component.type`, `ritele.layer`, `ritele.domain`, `ritele.owner`. `type` takes an `ArchitectureComponentType` member: `SERVICE`, `FUNCTION`, `GATEWAY`, `DATABASE`, `CACHE`, `QUEUE`, `CONSUMER`, `EXTERNAL`, `FRONTEND`, `CRON`. |
 | `architecture.intendedDependencies` | unset | Names of the components this service is meant to call, e.g. `["postgresql:ledger", "kafka:transfers", "paystack"]`. Lets a backend flag drift when the observed calls differ. Emitted as `ritele.intended_dependencies`, a string array. |
 | `architecture.concurrency` | unset | Limits that bound this service, e.g. `{ http: 200, pgPool: 20 }`. Emitted as `ritele.concurrency.<key>`; capacity models use them to predict where saturation starts. A measured pool (`db.client.connection.max`) takes precedence over `pgPool`. |
-| `architecture.cpuLimit` | unset | CPU limit of one replica, in cores, e.g. `0.5`. Emitted as `ritele.cpu.limit`. A value that isn't a positive number is dropped with a `diag` warning. Leave it unset when the pod has no CPU limit. |
+| `architecture.cpuLimit` | unset | CPU limit of one replica, in cores, e.g. `0.5`. Emitted as `ritele.cpu.limit`. A value that isn't a positive number is dropped with a warning. Leave it unset when the pod has no CPU limit. If you leave it out, the kit reads `CPU_LIMIT_MILLICORES`, as the Kubernetes recipe sets it. |
 | `architecture.docTraceRatio` | unset | Fraction (0–1) of root traces marked as *documentation traces*, independently of `traces.sampleRatio`. A marked trace is always recorded, and the mark (`tracestate: as=d`) is carried to every downstream service so they record it too. Keeps a topology complete under aggressive production sampling: `sampleRatio: 0.001, docTraceRatio: 0.02` costs almost nothing and still sees every dependency. It wraps whichever sampler you configure, a custom `traces.sampler` included, and a marked trace bypasses that sampler entirely. The mark is only honoured where a trace enters the process, and only when the inbound `traceparent` is already sampled, so a caller cannot force recording with a `tracestate` header alone and local spans still answer to your own sampler — but on a service that accepts traffic from outside your network, treat it as you treat a forged sampled flag and strip both headers at the edge. |
 | `architecture.peers` | unset | Map outbound hosts to a stable name: `{ "api.paystack.co": "paystack", "*.interswitch.com": "interswitch" }`. Sets `peer.service` on client and producer spans so three regional hostnames become one component in a graph. Keys are exact hosts or `*.suffix`. Matching needs a host attribute on the span, which HTTP, undici, pg and ioredis set but the messaging instrumentations do not — name a broker with `withSpan({ peer })` or `intendedDependencies` instead. |
 
@@ -80,6 +82,10 @@ Only `serviceName` is required. Everything else has a working default.
 | `onStartupError` | logs and continues | Called instead of throwing when the configuration is rejected. |
 | `diagLogLevel` | off | Turns on OpenTelemetry's own internal logging. |
 | `diagLogger` | console | Where that internal logging goes. |
+
+## Environment variables
+
+The kit reads the standard `OTEL_*` variables where they apply, plus `CPU_LIMIT_MILLICORES`. A value set in code always wins over the environment. A variable that is set but blank — as a ConfigMap key left empty arrives — counts as unset, and a value the kit can't use, such as a sample ratio of `1.5`, is ignored with a warning at startup rather than applied. Warnings about your configuration, from code or the environment, go to your `diagLogger` when `diagLogLevel` is `WARN` or more detailed, and to the console otherwise — so setting `diagLogLevel: DiagLogLevel.ERROR` to quiet OpenTelemetry's chatter does not hide them.
 
 ## Shutting down
 

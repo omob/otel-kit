@@ -155,7 +155,9 @@ describe("InstrumentationFactory only / esmHook", () => {
     );
   });
 
-  it("keeps the rest of the sdk when @fastify/otel is not installed", () => {
+  it("keeps the rest of the sdk, and says so, when @fastify/otel is not installed", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
     jest.isolateModules(() => {
       jest.doMock("../../src/utils/optional-dependency", () => ({
         loadOptionalDependency: () => {
@@ -169,6 +171,9 @@ describe("InstrumentationFactory only / esmHook", () => {
       expect(names).toContain(InstrumentationName.HTTP);
       expect(names).not.toContain(InstrumentationName.FASTIFY);
     });
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("@fastify/otel"));
+    warn.mockRestore();
   });
 
   it("registers the ESM loader hook by default and can be turned off", () => {

@@ -1,4 +1,3 @@
-import { diag } from "@opentelemetry/api";
 import { ArchitectureComponentType } from "../../src/enums/architecture-component-type.enum";
 import { AlwaysOnSampler } from "@opentelemetry/sdk-trace-base";
 import { ExporterType } from "../../src/enums/exporter-type.enum";
@@ -109,6 +108,8 @@ describe("ResourceFactory", () => {
 
 describe("ResourceFactory architecture attributes", () => {
   it("emits ritele.* resource attributes from the architecture block", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
     const resource = ResourceFactory.createResource({
       serviceName: "wallet",
       architecture: {
@@ -132,6 +133,9 @@ describe("ResourceFactory architecture attributes", () => {
       "ritele.concurrency.pgPool": 20,
     });
     expect(resource.attributes["ritele.concurrency.bogus"]).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("bogus"));
+
+    warn.mockRestore();
   });
 
   it("emits the cpu limit of one replica in cores", () => {
@@ -141,7 +145,7 @@ describe("ResourceFactory architecture attributes", () => {
   });
 
   it.each([0, -1, NaN, Infinity])("drops a cpu limit of %p with a warning", (cpuLimit) => {
-    const warn = jest.spyOn(diag, "warn").mockImplementation(() => undefined);
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
 
     const resource = ResourceFactory.createResource({ serviceName: "wallet", architecture: { cpuLimit } });
 

@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { diag } from "@opentelemetry/api";
 import { defaultResource, resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_INSTANCE_ID, ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
 import type { Resource } from "@opentelemetry/resources";
 import { ArchitectureAttribute } from "../enums/architecture-attribute.enum";
+import { EnvironmentVariable } from "../enums/environment-variable.enum";
 import { ExporterType } from "../enums/exporter-type.enum";
+import { readEnvironment } from "../utils/environment";
 import { IArchitectureConfig, ITelemetryConfig, ResourceAttributeValue } from "../telemetry.types";
+import { warn } from "../utils/warn";
 
 // still an incubating convention, whose subpath export only resolves under node16 module resolution
 const ATTR_DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
@@ -21,7 +23,7 @@ class ResourceFactory {
       ...ResourceFactory.sampleProbability(config),
       [ATTR_SERVICE_NAME]: config.serviceName,
     };
-    const serviceVersion = config.serviceVersion ?? process.env.npm_package_version;
+    const serviceVersion = config.serviceVersion ?? readEnvironment(EnvironmentVariable.NPM_PACKAGE_VERSION);
 
     if (serviceVersion) {
       attributes[ATTR_SERVICE_VERSION] = serviceVersion;
@@ -79,7 +81,7 @@ class ResourceFactory {
       if (Number.isFinite(limit) && limit > 0) {
         out[`${ArchitectureAttribute.CONCURRENCY_PREFIX}${key}`] = limit;
       } else {
-        diag.warn(`@omob/otel-kit ignores the concurrency limit "${key}: ${limit}"; it must be a positive number`);
+        warn(`@omob/otel-kit ignores the concurrency limit "${key}: ${limit}"; it must be a positive number`);
       }
     }
 
@@ -87,7 +89,7 @@ class ResourceFactory {
       if (Number.isFinite(cpuLimit) && cpuLimit > 0) {
         out[ArchitectureAttribute.CPU_LIMIT] = cpuLimit;
       } else {
-        diag.warn(`@omob/otel-kit ignores the CPU limit "${cpuLimit}"; it must be a positive number of cores`);
+        warn(`@omob/otel-kit ignores the CPU limit "${cpuLimit}"; it must be a positive number of cores`);
       }
     }
 

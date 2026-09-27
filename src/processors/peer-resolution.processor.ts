@@ -1,7 +1,8 @@
-import { diag, SpanKind } from "@opentelemetry/api";
+import { SpanKind } from "@opentelemetry/api";
 import type { Span, SpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVER_ADDRESS } from "@opentelemetry/semantic-conventions";
 import { ArchitectureAttribute } from "../enums/architecture-attribute.enum";
+import { warn } from "../utils/warn";
 
 // pre-stable http/net conventions still emitted by some instrumentations
 const LEGACY_HOST_ATTRS = ["net.peer.name", "http.host"];
@@ -16,7 +17,7 @@ class PeerResolutionProcessor implements SpanProcessor {
       if (host.startsWith("*.")) {
         this.suffixes.push([host.slice(1).toLowerCase(), name]);
       } else if (host.includes("*")) {
-        diag.warn(`@omob/otel-kit ignores the peer pattern "${host}"; only an exact host or a *.suffix matches`);
+        warn(`@omob/otel-kit ignores the peer pattern "${host}"; only an exact host or a *.suffix matches`);
       } else {
         this.exact.set(host.toLowerCase(), name);
       }

@@ -13,6 +13,7 @@ jest.mock("@opentelemetry/sdk-node", () => ({
 }));
 
 import { ExporterType } from "../../src/enums/exporter-type.enum";
+import { QueryRedaction } from "../../src/enums/query-redaction.enum";
 import SdkFactory from "../../src/factories/sdk.factory";
 import { ITelemetryConfig } from "../../src/telemetry.types";
 
@@ -31,7 +32,7 @@ describe("SdkFactory", () => {
       logs: { exporter: ExporterType.NONE },
     });
 
-    expect(config.spanProcessors).toHaveLength(1);
+    expect(config.spanProcessors).toHaveLength(2);
     expect(config.metricReaders).toEqual([]);
     expect(config.logRecordProcessors).toEqual([]);
   });
@@ -39,7 +40,7 @@ describe("SdkFactory", () => {
   it("switches every signal off when no signal is configured at all", () => {
     const config = build();
 
-    expect(config.spanProcessors).toHaveLength(1);
+    expect(config.spanProcessors).toHaveLength(2);
     expect(config.metricReaders).toEqual([]);
   });
 
@@ -53,7 +54,7 @@ describe("SdkFactory", () => {
   it("batches a configured trace exporter", () => {
     const config = build({ traces: { exporter: ExporterType.CONSOLE } });
 
-    expect(config.spanProcessors).toHaveLength(2);
+    expect(config.spanProcessors).toHaveLength(3);
   });
 
   it("caps attribute length so an oversized request cannot produce an unbounded span", () => {
@@ -73,11 +74,19 @@ describe("SdkFactory", () => {
     expect(config.sampler).toBe(sampler);
   });
 
-  it("sanitizes attributes by default and lets the caller opt out", () => {
-    expect(build({ traces: { exporter: ExporterType.NONE } }).spanProcessors).toHaveLength(1);
-    expect(
-      build({ traces: { exporter: ExporterType.NONE, sanitizeAttributes: false } }).spanProcessors
-    ).toHaveLength(0);
+  it("sanitizes attributes and redacts paths by default, each with its own opt-out", () => {
+    const processors = (traces: object) =>
+      (build({ traces: { exporter: ExporterType.NONE, ...traces } }).spanProcessors as object[]).map(
+        (processor) => processor.constructor.name
+      );
+
+    expect(processors({})).toEqual(["AttributeSanitizerProcessor", "PathRedactionProcessor"]);
+    expect(processors({ sanitizeAttributes: false })).toEqual(["PathRedactionProcessor"]);
+    expect(processors({ redactPathSegments: false })).toEqual(["AttributeSanitizerProcessor"]);
+    expect(processors({ redactPathSegments: false, redactQuery: QueryRedaction.DROP })).toEqual([
+      "AttributeSanitizerProcessor",
+      "PathRedactionProcessor",
+    ]);
   });
 
   it("appends additional span processors alongside the exporter", () => {
@@ -86,15 +95,15 @@ describe("SdkFactory", () => {
       traces: { exporter: ExporterType.CONSOLE, additionalProcessors: [processor as never] },
     });
 
-    expect(config.spanProcessors).toHaveLength(3);
-    expect((config.spanProcessors as unknown[])[2]).toBe(processor);
+    expect(config.spanProcessors).toHaveLength(4);
+    expect((config.spanProcessors as unknown[])[3]).toBe(processor);
   });
 
   it("keeps additional processors when no exporter is configured", () => {
     const processor = { onStart: jest.fn(), onEnd: jest.fn(), shutdown: jest.fn(), forceFlush: jest.fn() };
     const config = build({ traces: { exporter: ExporterType.NONE, additionalProcessors: [processor as never] } });
 
-    expect((config.spanProcessors as unknown[])[1]).toBe(processor);
+    expect((config.spanProcessors as unknown[])[2]).toBe(processor);
   });
 
   it("passes metric views through", () => {

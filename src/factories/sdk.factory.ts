@@ -5,11 +5,13 @@ import type { Instrumentation } from "@opentelemetry/instrumentation";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor, SpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ExporterType } from "../enums/exporter-type.enum";
+import { QueryRedaction } from "../enums/query-redaction.enum";
 import { ILogConfig, IMetricConfig, ITelemetryConfig, ITraceConfig } from "../telemetry.types";
 import InstrumentationFactory from "./instrumentation.factory";
 import LogProcessorFactory from "./log-processor.factory";
 import MetricReaderFactory from "./metric-reader.factory";
 import AttributeSanitizerProcessor from "../processors/attribute-sanitizer.processor";
+import PathRedactionProcessor from "../processors/path-redaction.processor";
 import PeerResolutionProcessor from "../processors/peer-resolution.processor";
 import PropagatorFactory from "./propagator.factory";
 import MetricConfigFactory from "./metric-config.factory";
@@ -28,6 +30,14 @@ class SdkFactory {
 
   static createPropagator(config: ITelemetryConfig): TextMapPropagator {
     return PropagatorFactory.createPropagator(config.propagators);
+  }
+
+  // dropping query strings is its own decision, and still applies with path masking turned off
+  static createUrlRedaction(traces: ITraceConfig): SpanProcessor[] {
+    const maskSegments = traces.redactPathSegments !== false;
+    const query = traces.redactQuery ?? QueryRedaction.MASK;
+
+    return maskSegments || query === QueryRedaction.DROP ? [new PathRedactionProcessor({ maskSegments, query })] : [];
   }
 
   static isDisabledByEnvironment(): boolean {
@@ -51,6 +61,7 @@ class SdkFactory {
     const spanProcessors: SpanProcessor[] = [
       ...(peers && Object.keys(peers).length ? [new PeerResolutionProcessor(peers)] : []),
       ...(traces.sanitizeAttributes === false ? [] : [new AttributeSanitizerProcessor()]),
+      ...SdkFactory.createUrlRedaction(traces),
       ...(traceExporter ? [new BatchSpanProcessor(traceExporter, traces.batch)] : []),
       ...(traces.additionalProcessors ?? []),
     ];

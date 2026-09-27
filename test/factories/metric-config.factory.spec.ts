@@ -67,6 +67,69 @@ describe("MetricConfigFactory", () => {
     });
   });
 
+  it.each([
+    ["traces go nowhere", { traces: { exporter: ExporterType.NONE } }],
+    ["there are no traces", {}],
+    ["the traces url cannot be mapped", { traces: { exporter: ExporterType.OTLP, otlp: { url: "https://c.example/spans" } } }],
+  ])("refuses a metrics block with no URL when %s, rather than fall back to localhost", (_, config) => {
+    const metrics = MetricConfigFactory.createMetricConfig({
+      serviceName: "kreela-api",
+      ...config,
+      metrics: { exporter: ExporterType.OTLP, cpuUsage: true },
+    });
+
+    expect(metrics).toEqual({ exporter: ExporterType.NONE });
+  });
+
+  it.each(["OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"])(
+    "leaves a metrics block with no URL to %s when it is set",
+    (variable) => {
+      const metrics = withEnvironment({ [variable]: "https://collector.example" }, () =>
+        MetricConfigFactory.createMetricConfig({ serviceName: "kreela-api", metrics: { exporter: ExporterType.OTLP } })
+      );
+
+      expect(metrics.exporter).toBe(ExporterType.OTLP);
+    }
+  );
+
+  it.each([
+    "collector.svc.cluster.local/v1/traces",
+    "/v1/traces",
+    "//collector/v1/traces",
+    "collector:4318/v1/traces",
+  ])("derives no metrics url from the malformed traces url %p", (url) => {
+    const metrics = MetricConfigFactory.createMetricConfig({
+      serviceName: "kreela-api",
+      traces: { exporter: ExporterType.OTLP, otlp: { url } },
+    });
+
+    expect(metrics.exporter).toBe(ExporterType.NONE);
+  });
+
+  it("hands a blank metrics url to the endpoint variable rather than to the exporter", () => {
+    const metrics = withEnvironment({ OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector.example" }, () =>
+      MetricConfigFactory.createMetricConfig({
+        serviceName: "kreela-api",
+        metrics: { exporter: ExporterType.OTLP, otlp: { url: "   " } },
+      })
+    );
+
+    expect(metrics.exporter).toBe(ExporterType.OTLP);
+    expect(metrics.otlp?.url).toBeUndefined();
+  });
+
+  it("treats a blank url or variable as unset", () => {
+    const metrics = withEnvironment({ OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "  " }, () =>
+      MetricConfigFactory.createMetricConfig({
+        serviceName: "kreela-api",
+        traces: { exporter: ExporterType.OTLP, otlp: { url: "" } },
+      })
+    );
+
+    expect(metrics.exporter).toBe(ExporterType.OTLP);
+    expect(metrics.otlp?.url).toBeUndefined();
+  });
+
   it("keeps a query string on the derived url", () => {
     const metrics = MetricConfigFactory.createMetricConfig({
       serviceName: "kreela-api",

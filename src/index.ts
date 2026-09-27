@@ -5,6 +5,7 @@ import { HostNameMode } from "./enums/host-name-mode.enum";
 import { InstrumentationName } from "./enums/instrumentation-name.enum";
 import { OtlpProtocol } from "./enums/otlp-protocol.enum";
 import { PropagatorType } from "./enums/propagator-type.enum";
+import { QueryRedaction } from "./enums/query-redaction.enum";
 import { TelemetryErrorCode } from "./enums/telemetry-error-code.enum";
 import { TelemetrySignal } from "./enums/telemetry-signal.enum";
 import TelemetryConfigError from "./errors/telemetry-config.error";
@@ -25,6 +26,7 @@ export {
   observeCpuUsage,
   OtlpProtocol,
   PropagatorType,
+  QueryRedaction,
   Telemetry,
   TelemetryConfigError,
   TelemetryErrorCode,

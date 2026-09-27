@@ -9,6 +9,7 @@ import { HostNameMode } from "./enums/host-name-mode.enum";
 import { InstrumentationName } from "./enums/instrumentation-name.enum";
 import { OtlpProtocol } from "./enums/otlp-protocol.enum";
 import { PropagatorType } from "./enums/propagator-type.enum";
+import { QueryRedaction } from "./enums/query-redaction.enum";
 
 export type ResourceAttributeValue = string | number | boolean | string[];
 
@@ -80,6 +81,10 @@ export interface ITraceConfig {
   sampleRatio?: number;
   sampler?: Sampler;
   additionalProcessors?: SpanProcessor[];
+  /** Mask ids, emails and tokens in url.path, url.query and url.full. On by default; http.route keeps the template. */
+  redactPathSegments?: boolean;
+  /** `MASK` masks identifying query values along with paths; `DROP` removes query strings even with path masking off, for values such as names. */
+  redactQuery?: QueryRedaction;
   sanitizeAttributes?: boolean;
   batch?: IBatchOptions;
   otlp?: IOtlpOptions;

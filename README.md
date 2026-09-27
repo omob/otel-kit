@@ -47,10 +47,7 @@ Telemetry.start({
   serviceVersion: process.env.APP_VERSION,
   environment: process.env.NODE_ENV,
   enabled: process.env.NODE_ENV !== "test",
-  traces: {
-    exporter: ExporterType.CONSOLE,
-    sampleRatio: Number(process.env.OTEL_TRACES_SAMPLE_RATIO ?? 1),
-  },
+  traces: { exporter: ExporterType.CONSOLE },
 
   // logs stay off until you add their block. Uncomment to bridge your existing pino or
   // winston output, with its trace id, without changing how you log.
@@ -66,7 +63,6 @@ Telemetry.start({
 traces: {
   exporter: ExporterType.OTLP,
   otlp: { url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT },
-  sampleRatio: Number(process.env.OTEL_TRACES_SAMPLE_RATIO ?? 1),
 }
 ```
 
@@ -96,7 +92,7 @@ ESM links every module in the graph before any of them runs, so an `import "./in
 
 That's it. HTTP, database and framework calls are traced automatically.
 
-Keep the ratio at 1 while you are setting things up. Sampling below 1 is a production concern, and turning it down before you have seen a single trace is the most common reason nothing appears in a backend. Dial it down later with the env var.
+Every trace is kept until you say otherwise. Keep it that way while you are setting things up: sampling is a production concern, and turning it down before you have seen a single trace is the most common reason nothing appears in a backend. When you're ready, set `OTEL_TRACES_SAMPLER_ARG=0.1` to keep 10% — the kit reads the standard variable itself and ignores a value that isn't between 0 and 1, with a warning, rather than drop every trace. A `traces.sampleRatio` in code wins over it.
 
 **On Fastify, install `@fastify/otel` and turn it on.** It ships disabled, along with `fs`:
 
@@ -128,6 +124,8 @@ Every span, metric and log is stamped with who sent it, so a backend can tell se
 | `host.arch`, `process.pid`, `process.runtime.*` | detected at startup |
 | `container.id` | detected at startup under Docker and on hosts with cgroup v1. Most current Kubernetes clusters (containerd with cgroup v2, as on EKS, GKE and AKS) don't expose it to the process, so it is left out there |
 | `k8s.pod.name`, `k8s.namespace.name`, `k8s.container.name`, … | not detected — pass them in through `OTEL_RESOURCE_ATTRIBUTES`, as the [Kubernetes recipe](https://github.com/omob/otel-kit/blob/main/docs/recipes.md) shows. Pod, namespace and container name are what the cluster's own metrics are labelled with, so they are the attributes to set |
+
+**Ids in URLs are masked.** An account number, email, UUID, token or document number in a request path or query string becomes `*` in `url.path`, `url.query` and `url.full` before a span leaves the process: `/v1/customers/22123456789?email=ada@example.com&page=2` is sent as `/v1/customers/*?email=*&page=2`. `http.route` keeps the route template (`/v1/customers/:id`), so grouping by route loses nothing. The rules were checked against every path segment of a large production codebase, so route names such as `process-multi-payment-wallet-credit-retry` or `confirm-otp-v2` stay readable. They are rules, not a guarantee: a short technical name with digits (`sha256`, `base64`, `top-10`) is masked too, and an id made only of letters and shorter than 24 characters is not. Query values such as a person's name have no shape to match, so if yours carry them, set `traces.redactQuery: QueryRedaction.DROP` to send no query strings at all. Set `traces.redactPathSegments: false` if you need raw URLs. Masking runs as every span ends — failed and aborted requests included, unlike a hook that only sees responses — and applies to `url.*` values whatever set them, your own instrumentation hooks included, so a hook that blanks the query keeps it blank. `DROP` applies even with `redactPathSegments: false`.
 
 **Personal details stay on the machine.** The kit leaves out your command line, the paths to your script and to the `node` binary, and your user name, and on a personal machine it swaps the host name and id for pseudonyms. Flags often carry secrets, and paths such as `/Users/<you>/.nvm/…` and host names such as `Ada-MacBook-Pro` name the user. A pseudonym is the same on every run, so a backend still tells your machines apart and still has a label to show. The host name's pseudonym is keyed by the machine id, which never leaves the machine, so it can't be reversed by guessing likely names; a personal machine with no machine id sends no host name.
 
@@ -242,7 +240,7 @@ Where exactly they go:
 
 **To turn them off**, set `OTEL_METRICS_EXPORTER=none`, or pass `metrics: { exporter: ExporterType.NONE }`. Do this if your backend only takes traces (Jaeger, for example) or charges per metric series. The variable wins over anything in code, including a `metrics` block, so it works as an off switch during an incident; the kit prints a warning at startup when it overrides a block, so a leftover setting doesn't go unnoticed. Only `none` is read; other values such as `console` are ignored.
 
-**To change an option**, such as the interval or `cpuUsage`, write a `metrics` block with `exporter: ExporterType.OTLP` and no URL. It keeps the collector and headers worked out above. That only works when the table above finds a collector: if your traces URL has another path, or traces don't go over OTLP, a block without a URL falls back to `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`, `OTEL_EXPORTER_OTLP_ENDPOINT`, or else the local default (`localhost:4318`, or `4317` for gRPC). **To send them somewhere else**, give the block its own URL:
+**To change an option**, such as the interval or `cpuUsage`, write a `metrics` block with `exporter: ExporterType.OTLP` and no URL. It keeps the collector and headers worked out above. If there is none to keep — traces don't go over OTLP, or their URL has another path — the block uses `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` if you set one. Otherwise the kit sends no metrics and says so at startup, rather than quietly retrying a local collector that isn't there. **To send them somewhere else**, give the block its own URL:
 
 ```ts
 metrics: {
@@ -319,6 +317,8 @@ You get:
 | `db.client.connection.wait_time` | How long they waited, if you call the returned `recordWait(millis)` when you acquire one |
 
 A pool at its limit with a queue behind it means the bottleneck is your pool size, not the database. It works with any pool — Postgres, MySQL, Mongo, Redis — because you supply the `read` function.
+
+**Several pools, one database?** Register each under the same name and their readings add into one series, which is what the database sees from your service. A primary and a replica that point at the same host when no replica is configured are the usual case. Stopping one leaves the others reporting. The [knex recipe](https://github.com/omob/otel-kit/blob/main/docs/recipes.md) shows this for knex.
 
 **Using `pg`?** The pg instrumentation also reports these metrics for `pg-pool`, under the same names. Its numbers are only right while you have a single pool: with two or more, its counts drift and can go negative. Register your pools here anyway, and have your backend read the `@omob/otel-kit` scope. Ritele prefers these measured numbers over `architecture.concurrency.pgPool`, which it only uses for a pool nothing measures.
 
