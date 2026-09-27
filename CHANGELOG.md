@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0
+
+Added
+
+- **The V8 heap ceiling, as `ritele.v8js.memory.heap.limit`** — `heap_size_limit` in bytes, the size at which Node runs out of memory. The runtime metrics report how much heap is used but not where the ceiling is, so a chart had nothing to compare usage against. It is sent whenever metrics are exported and runtime metrics are on, and `runtimeMetrics: false`, or disabling the runtime instrumentation, turns it off with the rest. OpenTelemetry has no standard metric for the ceiling: `v8js.memory.heap.limit` is retired and meant the size of each heap space, so the kit names this one under `ritele.*` rather than give the old name a new meaning.
+
+Changed
+
+- **The kit's own metrics only go to the kit's own meter provider.** If your app registered a meter provider before `Telemetry.start()`, the SDK can't replace it, and `cpuUsage` used to report into yours. It and the heap ceiling are now left out in that case, since the kit isn't the one exporting metrics.
+
 ## 0.8.0
 
 Changed

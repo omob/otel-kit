@@ -1,11 +1,10 @@
 import { BatchObservableResult, metrics, ObservableGauge } from "@opentelemetry/api";
 import { ConnectionPoolAttribute, ConnectionPoolMetric, ConnectionPoolState } from "../enums/connection-pool-metric.enum";
+import { InstrumentationScope } from "../enums/instrumentation-scope.enum";
 import { IConnectionPoolHandle, IConnectionPoolOptions } from "../telemetry.types";
 
-const METER_NAME = "@omob/otel-kit";
-
 export function observeConnectionPool(options: IConnectionPoolOptions): IConnectionPoolHandle {
-  const meter = metrics.getMeter(METER_NAME);
+  const meter = metrics.getMeter(InstrumentationScope.KIT);
 
   const attributes = {
     [ConnectionPoolAttribute.POOL_NAME]: options.name,

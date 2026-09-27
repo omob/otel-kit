@@ -1,8 +1,7 @@
 import { context, Span, SpanStatusCode, trace, Tracer } from "@opentelemetry/api";
 import { ArchitectureAttribute } from "../enums/architecture-attribute.enum";
+import { InstrumentationScope } from "../enums/instrumentation-scope.enum";
 import { IWithSpanOptions, SpanHandler } from "../telemetry.types";
-
-const DEFAULT_TRACER_NAME = "@omob/otel-kit";
 
 export function getTracer(name: string, version?: string): Tracer {
   return trace.getTracer(name, version);
@@ -31,7 +30,7 @@ export function withSpan<T>(
     };
   }
 
-  return (tracer ?? trace.getTracer(DEFAULT_TRACER_NAME)).startActiveSpan(name, spanOptions, async (span: Span) => {
+  return (tracer ?? trace.getTracer(InstrumentationScope.KIT)).startActiveSpan(name, spanOptions, async (span: Span) => {
     try {
       return await handler(span);
     } catch (error) {
