@@ -17,11 +17,13 @@ import { InstrumentationName } from "../enums/instrumentation-name.enum";
 import { TelemetryErrorCode } from "../enums/telemetry-error-code.enum";
 import { TelemetryGlobal } from "../enums/telemetry-global.enum";
 import TelemetryConfigError from "../errors/telemetry-config.error";
+import EnvironmentConfigFactory from "../factories/environment-config.factory";
 import MetricConfigFactory from "../factories/metric-config.factory";
 import type SdkFactory from "../factories/sdk.factory";
 import { IMetricObserverHandle, ITelemetryConfig } from "../telemetry.types";
 import { observeCpuUsage } from "./cpu-usage.service";
 import { observeHeapLimit } from "./heap-limit.service";
+import { routeWarningsToDiagnostics, warn } from "../utils/warn";
 
 const DEFAULT_SHUTDOWN_TIMEOUT_MILLIS = 5_000;
 const SHUTDOWN_SIGNALS: NodeJS.Signals[] = ["SIGTERM", "SIGINT"];
@@ -94,12 +96,14 @@ class TelemetryService {
     return this.sdk !== undefined;
   }
 
-  private startSdk(config: ITelemetryConfig): void {
+  private startSdk(codeConfig: ITelemetryConfig): void {
+    this.configureDiagnostics(codeConfig);
+
+    const config = EnvironmentConfigFactory.withEnvironmentDefaults(codeConfig);
+
     if (!config.serviceName) {
       throw new TelemetryConfigError(TelemetryErrorCode.MISSING_SERVICE_NAME, "serviceName is required");
     }
-
-    this.configureDiagnostics(config);
 
     const sdkFactory = this.loadSdkFactory();
     const propagator = sdkFactory.createPropagator(config);
@@ -134,7 +138,11 @@ class TelemetryService {
     const metrics = MetricConfigFactory.createMetricConfig(config);
 
     if (config.metrics && config.metrics.exporter !== ExporterType.NONE && metrics.exporter === ExporterType.NONE) {
-      console.warn("@omob/otel-kit exports no metrics: OTEL_METRICS_EXPORTER=none overrides the metrics block in code");
+      warn(
+        MetricConfigFactory.turnedOffByEnvironment()
+          ? "@omob/otel-kit exports no metrics: OTEL_METRICS_EXPORTER=none overrides the metrics block in code"
+          : "@omob/otel-kit exports no metrics: the metrics block has no URL, and none follows from traces or OTEL_EXPORTER_OTLP_ENDPOINT"
+      );
     }
 
     // a host that registered its own meter provider first keeps it, and the kit's observers must not report into it
@@ -191,6 +199,8 @@ class TelemetryService {
 
   // otel writes its own failures through diag, which discards everything until a logger is installed
   private configureDiagnostics(config: ITelemetryConfig): void {
+    routeWarningsToDiagnostics(config.diagLogLevel !== undefined);
+
     if (config.diagLogLevel === undefined) {
       return;
     }

@@ -59,12 +59,16 @@ describe("PeerResolutionProcessor", () => {
     expect(s.attributes["peer.service"]).toBe("regional");
   });
 
-  it("ignores a pattern that is neither an exact host nor a *.suffix", () => {
+  it("ignores a pattern that is neither an exact host nor a *.suffix, and says so", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
     const bad = new PeerResolutionProcessor({ "api.*.com": "nope" });
     const s = span(SpanKind.CLIENT, { "server.address": "api.paystack.com" });
 
     bad.onStart(s);
 
     expect(s.attributes["peer.service"]).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("api.*.com"));
+
+    warn.mockRestore();
   });
 });

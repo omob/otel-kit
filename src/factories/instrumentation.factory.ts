@@ -1,4 +1,3 @@
-import { diag } from "@opentelemetry/api";
 import { getNodeAutoInstrumentations, InstrumentationConfigMap } from "@opentelemetry/auto-instrumentations-node";
 import type { Instrumentation } from "@opentelemetry/instrumentation";
 import type { IncomingMessage } from "http";
@@ -6,6 +5,7 @@ import { InstrumentationName } from "../enums/instrumentation-name.enum";
 import { IFastifyInstrumentationConfig, IFastifyOtelModule, IInstrumentationConfig } from "../telemetry.types";
 import { registerEsmHook } from "../utils/esm-hook";
 import { loadOptionalDependency } from "../utils/optional-dependency";
+import { warn } from "../utils/warn";
 
 class InstrumentationFactory {
   static createInstrumentations(config: IInstrumentationConfig = {}, runtimeMetrics = true): Instrumentation[] {
@@ -13,7 +13,7 @@ class InstrumentationFactory {
 
     // registering after the app has imported a module is too late to patch it
     if (config.esmHook !== false && !registerEsmHook()) {
-      diag.warn("@omob/otel-kit could not register the ESM loader hook, only CommonJS requires are instrumented");
+      warn("@omob/otel-kit could not register the ESM loader hook, only CommonJS requires are instrumented");
     }
 
     if (config.only) {
@@ -62,7 +62,7 @@ class InstrumentationFactory {
 
       return [new FastifyOtelInstrumentation({ registerOnInitialization: true, ...options })];
     } catch (error) {
-      diag.warn(`@omob/otel-kit skipped fastify instrumentation: ${(error as Error).message}`);
+      warn(`@omob/otel-kit skipped fastify instrumentation: ${(error as Error).message}`);
 
       return [];
     }

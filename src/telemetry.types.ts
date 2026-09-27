@@ -80,6 +80,8 @@ export interface ITraceConfig {
   sampleRatio?: number;
   sampler?: Sampler;
   additionalProcessors?: SpanProcessor[];
+  /** Mask ids, emails and tokens in url.path, url.query and url.full. On by default; http.route keeps the template. */
+  redactPathSegments?: boolean;
   sanitizeAttributes?: boolean;
   batch?: IBatchOptions;
   otlp?: IOtlpOptions;

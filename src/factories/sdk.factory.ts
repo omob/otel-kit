@@ -10,6 +10,7 @@ import InstrumentationFactory from "./instrumentation.factory";
 import LogProcessorFactory from "./log-processor.factory";
 import MetricReaderFactory from "./metric-reader.factory";
 import AttributeSanitizerProcessor from "../processors/attribute-sanitizer.processor";
+import PathRedactionProcessor from "../processors/path-redaction.processor";
 import PeerResolutionProcessor from "../processors/peer-resolution.processor";
 import PropagatorFactory from "./propagator.factory";
 import MetricConfigFactory from "./metric-config.factory";
@@ -51,6 +52,7 @@ class SdkFactory {
     const spanProcessors: SpanProcessor[] = [
       ...(peers && Object.keys(peers).length ? [new PeerResolutionProcessor(peers)] : []),
       ...(traces.sanitizeAttributes === false ? [] : [new AttributeSanitizerProcessor()]),
+      ...(traces.redactPathSegments === false ? [] : [new PathRedactionProcessor()]),
       ...(traceExporter ? [new BatchSpanProcessor(traceExporter, traces.batch)] : []),
       ...(traces.additionalProcessors ?? []),
     ];

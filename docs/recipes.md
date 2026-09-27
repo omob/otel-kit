@@ -151,17 +151,48 @@ env:
 
 Each variable has to be declared before the one that uses it, as here. `divisor: 1m` gives millicores, so a `500m` limit arrives as `500`. The pod name also makes a readable `service.instance.id` in place of the kit's random one.
 
-```ts
-const millicores = Number(process.env.CPU_LIMIT_MILLICORES);
+The kit reads `CPU_LIMIT_MILLICORES` itself and reports it as `architecture.cpuLimit` in cores, so the code only turns CPU reporting on:
 
+```ts
 Telemetry.start({
   serviceName: "wallet-service",
   traces: { exporter: ExporterType.OTLP, otlp: { url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT } },
   metrics: { exporter: ExporterType.OTLP, cpuUsage: true },
-  architecture: { cpuLimit: millicores > 0 ? millicores / 1000 : undefined },
 });
 ```
 
-CPU capacity needs metrics exporting somewhere; the limit alone predicts nothing. The `metrics` block above has no URL, so it goes wherever the traces go. Only add `CPU_LIMIT_MILLICORES` to containers that have a CPU limit: without one, the downward API hands back the node's allocatable CPU, which is positive but is not what one replica may use, and the code above cannot tell the difference. `OTEL_RESOURCE_ATTRIBUTES` is read by resource detection, so with `resourceDetection: false` pass the same attributes through `resourceAttributes` instead, for example `{ "service.instance.id": process.env.POD_NAME, "k8s.pod.name": process.env.POD_NAME }`.
+CPU capacity needs metrics exporting somewhere; the limit alone predicts nothing. The `metrics` block above has no URL, so it goes wherever the traces go. Only add `CPU_LIMIT_MILLICORES` to containers that have a CPU limit: without one, the downward API hands back the node's allocatable CPU, which is positive but is not what one replica may use, and nothing can tell the difference. A `cpuLimit` set in code wins over the variable, and a value that isn't a positive number is ignored with a warning. `OTEL_RESOURCE_ATTRIBUTES` is read by resource detection, so with `resourceDetection: false` pass the same attributes through `resourceAttributes` instead, for example `{ "service.instance.id": process.env.POD_NAME, "k8s.pod.name": process.env.POD_NAME }`.
 
 The model assumes one Node process per replica. Under `cluster` or PM2, each worker counts as a replica holding the whole container's limit, so capacity comes out overstated by the worker count. Don't use the pod name there either: the workers would share one id and their CPU series would collide.
+
+**Connection pools with knex** — knex keeps its pool on `client.pool`. Name each pool `host:port/database`, the way a backend such as Ritele matches a pool to the database it belongs to, and register every knex instance you create. Two instances that reach the same database, such as a primary and a replica that falls back to the primary's host, share that name, and their readings add into one series:
+
+```ts
+import { observeConnectionPool } from "@omob/otel-kit";
+
+declare const primary: KnexLike;
+declare const replica: KnexLike;
+interface KnexLike {
+  client: {
+    config: { connection: { host: string; port?: number; database: string } };
+    pool?: { max: number; numUsed(): number; numFree(): number; numPendingAcquires(): number };
+  };
+}
+
+for (const knex of [primary, replica]) {
+  const { host, port = 5432, database } = knex.client.config.connection;
+
+  observeConnectionPool({
+    name: `${host}:${port}/${database}`,
+    system: "postgresql",
+    read: () => ({
+      max: knex.client.pool?.max ?? 0,
+      used: knex.client.pool?.numUsed() ?? 0,
+      idle: knex.client.pool?.numFree() ?? 0,
+      pending: knex.client.pool?.numPendingAcquires() ?? 0,
+    }),
+  });
+}
+```
+
+Register the pools after `Telemetry.start()`. knex creates its pool lazily, so `read` guards a missing one rather than throwing on every collection.

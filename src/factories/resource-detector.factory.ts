@@ -1,14 +1,15 @@
 import { createHash, createHmac } from "node:crypto";
-import { diag } from "@opentelemetry/api";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { envDetector, hostDetector, osDetector, processDetector, serviceInstanceIdDetector } from "@opentelemetry/resources";
 import type { DetectedResourceAttributes, ResourceDetector } from "@opentelemetry/resources";
+import { EnvironmentVariable } from "../enums/environment-variable.enum";
 import { HostAttribute } from "../enums/host-attribute.enum";
 import { HostNameMode } from "../enums/host-name-mode.enum";
 import { ProcessAttribute } from "../enums/process-attribute.enum";
 import { ResourceDetectorName } from "../enums/resource-detector-name.enum";
+import { readEnvironment } from "../utils/environment";
+import { warn } from "../utils/warn";
 
-const RESOURCE_DETECTORS_ENV = "OTEL_NODE_RESOURCE_DETECTORS";
 const DEFAULT_DETECTORS = [
   ResourceDetectorName.ENV,
   ResourceDetectorName.PROCESS,
@@ -91,7 +92,8 @@ class ResourceDetectorFactory {
 
   private static autoMode(platform: NodeJS.Platform, environment: NodeJS.ProcessEnv): HostNameMode {
     const desktop =
-      PERSONAL_PLATFORMS.includes(platform) || DESKTOP_SESSION_ENV.some((variable) => Boolean(environment[variable]));
+      PERSONAL_PLATFORMS.includes(platform) ||
+      DESKTOP_SESSION_ENV.some((variable) => readEnvironment(variable, environment) !== undefined);
 
     return desktop ? HostNameMode.HASH : HostNameMode.KEEP;
   }
@@ -116,7 +118,7 @@ class ResourceDetectorFactory {
   }
 
   private static requestedDetectors(): ResourceDetectorName[] {
-    const configured = process.env[RESOURCE_DETECTORS_ENV];
+    const configured = readEnvironment(EnvironmentVariable.RESOURCE_DETECTORS);
 
     if (!configured) {
       return DEFAULT_DETECTORS;
@@ -126,7 +128,7 @@ class ResourceDetectorFactory {
     const names = configured.split(",").map((name) => name.trim()).filter(Boolean);
 
     for (const unknown of names.filter((name) => !known.has(name))) {
-      diag.warn(`@omob/otel-kit ignores the unknown resource detector "${unknown}" in ${RESOURCE_DETECTORS_ENV}`);
+      warn(`@omob/otel-kit ignores the unknown resource detector "${unknown}" in ${EnvironmentVariable.RESOURCE_DETECTORS}`);
     }
 
     return names.filter((name): name is ResourceDetectorName => known.has(name));

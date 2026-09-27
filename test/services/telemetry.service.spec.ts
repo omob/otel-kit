@@ -137,7 +137,10 @@ describe("Telemetry cpu usage", () => {
     });
     const noopProvider = metrics.getMeterProvider();
 
-    Telemetry.start({ ...silentConfig, metrics: { exporter: ExporterType.OTLP, cpuUsage: true } });
+    Telemetry.start({
+      ...silentConfig,
+      metrics: { exporter: ExporterType.OTLP, cpuUsage: true, otlp: { url: "http://127.0.0.1:9/v1/metrics" } },
+    });
 
     expect(observe).toHaveBeenCalledTimes(1);
     expect(providerAtObserve).not.toBe(noopProvider);
@@ -185,6 +188,69 @@ describe("Telemetry cpu usage", () => {
     Telemetry.start({ ...silentConfig, metrics: { exporter: ExporterType.NONE, cpuUsage } });
 
     expect(observe).not.toHaveBeenCalled();
+  });
+});
+
+describe("Telemetry environment defaults", () => {
+  it("applies OTEL_TRACES_SAMPLER_ARG and CPU_LIMIT_MILLICORES to the sdk it starts", async () => {
+    const SdkFactory = require("../../src/factories/sdk.factory").default;
+    const createSdk = jest.spyOn(SdkFactory, "createSdk");
+
+    Object.assign(process.env, { OTEL_TRACES_SAMPLER_ARG: "0.25", CPU_LIMIT_MILLICORES: "250" });
+
+    try {
+      Telemetry.start({ ...silentConfig, traces: { exporter: ExporterType.OTLP } });
+    } finally {
+      delete process.env.OTEL_TRACES_SAMPLER_ARG;
+      delete process.env.CPU_LIMIT_MILLICORES;
+    }
+
+    expect(createSdk).toHaveBeenCalledWith(
+      expect.objectContaining({
+        traces: expect.objectContaining({ sampleRatio: 0.25 }),
+        architecture: expect.objectContaining({ cpuLimit: 0.25 }),
+      }),
+      expect.any(Function)
+    );
+
+    await Telemetry.shutdown();
+    jest.restoreAllMocks();
+  });
+});
+
+describe("Telemetry warnings", () => {
+  it("go to the diagnostics logger the host configured, and to the console otherwise", () => {
+    const { DiagLogLevel } = require("@opentelemetry/api");
+    const diagLogger = { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn(), verbose: jest.fn() };
+    const consoleWarn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const badLimit = { ...silentConfig, architecture: { cpuLimit: -1 } };
+
+    Telemetry.start({ ...badLimit, diagLogLevel: DiagLogLevel.WARN, diagLogger });
+
+    expect(diagLogger.warn).toHaveBeenCalledWith(expect.stringContaining("CPU limit"));
+    expect(consoleWarn).not.toHaveBeenCalled();
+
+    return Telemetry.shutdown().then(() => {
+      Telemetry.start(badLimit);
+
+      expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining("CPU limit"));
+
+      jest.restoreAllMocks();
+    });
+  });
+});
+
+describe("Telemetry metrics without a collector", () => {
+  it("exports no metrics, and says why, for a metrics block with no URL and nothing to follow", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const heapLimit = jest.spyOn(require("../../src/services/heap-limit.service"), "observeHeapLimit");
+
+    Telemetry.start({ ...silentConfig, metrics: { exporter: ExporterType.OTLP, cpuUsage: true } });
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("the metrics block has no URL"));
+    expect(heapLimit).not.toHaveBeenCalled();
+
+    jest.restoreAllMocks();
   });
 });
 

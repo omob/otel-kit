@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.10.0
+
+**Upgrading?** Check three things:
+
+1. **A `metrics` block without a URL, and traces that aren't going over OTLP** (or whose URL the kit can't map)? It used to retry `localhost:4318` silently for the life of the process. It now sends nothing and warns at startup, unless `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Give the block a URL if you relied on the local default.
+2. **Raw ids in `url.path`, `url.query` or `url.full`?** They are masked as `*` by default now. Set `traces.redactPathSegments: false` to keep them.
+3. **Your own name for the sample ratio variable?** The kit now reads the standard `OTEL_TRACES_SAMPLER_ARG` when `traces.sampleRatio` isn't set in code, so you can pass it straight through. A ratio set in code still wins, so you can switch variables after upgrading.
+
+Changed
+
+- **A metrics block never falls back to an unrelated local collector.** Metrics follow traces, an explicit URL, or an endpoint variable; with none of those, the kit sends no metrics and says why at startup. Traces are unchanged: an OTLP traces exporter with no URL still uses the standard local default, because a sidecar collector on `localhost` is a real deployment. A traces URL must now use `http` or `https` for metrics to follow it — `collector:4318/v1/traces` parses, as scheme `collector:`, but reaches nothing.
+- **Ids in request paths and query strings are masked.** Account and phone numbers, emails, UUIDs, long tokens and document numbers such as licence or passport numbers in `url.path`, `url.query` and `url.full` are sent as `*`; query values that aren't identifiers, such as `page=2`, are left alone. `http.route` keeps the route template. The rules were tested both ways against every path segment of a large production codebase, and long hyphenated route names such as `process-multi-payment-wallet-credit-retry` stay readable. They are rules, not a guarantee: short technical names with digits (`sha256`, `base64`) are masked too, and ids made only of letters under 24 characters are not. `traces.redactPathSegments` has its own switch, separate from `sanitizeAttributes`.
+- **Configuration warnings print to the console.** An invalid CPU or concurrency limit, an unknown resource detector or a peer pattern the kit can't use used to warn through `diag`, which is silent unless `diagLogLevel` is set. They now print where you will see them, like the new environment warnings.
+- **One pool failing to report no longer blanks its group.** A pool whose `read` throws is left out of that collection, and the others in its group still report. Registering a pool under an existing name with a different `system` prints a warning, since the first registration's labels are kept.
+- **Pools that share a name add into one series.** Registering two pools under one name used to leave two callbacks writing the same series. Their readings are now summed, and the series keeps going until the last one stops.
+
+Added
+
+- **The kit reads the standard sampler variables.** With no `traces.sampleRatio` in code, `OTEL_TRACES_SAMPLER` and `OTEL_TRACES_SAMPLER_ARG` set it: a ratio, or `always_on`/`always_off`. The kit's sampler always follows a sampled caller, so `always_off` stops the traces this service starts, not the ones it continues; `architecture.docTraceRatio` still records its documentation traces. A ratio outside 0–1, or one that isn't a number, is ignored with a warning instead of dropping every trace.
+- **`CPU_LIMIT_MILLICORES` sets `architecture.cpuLimit`** when the code doesn't, so the Kubernetes recipe needs no conversion code.
+- **Blank environment variables count as unset** everywhere the kit reads one, as a ConfigMap key left empty arrives as `""`.
+- **A knex recipe** for connection pools, naming each pool `host:port/database`.
+
 ## 0.9.0
 
 Added

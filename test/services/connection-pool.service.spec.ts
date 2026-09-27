@@ -77,6 +77,94 @@ describe("observeConnectionPool", () => {
     expect(waits.some((p) => p.attributes["db.client.connection.pool.name"] === "stale")).toBe(false);
   });
 
+  it("adds pools that share a name into one series", async () => {
+    const primary = observeConnectionPool({ name: "ledger", read: () => ({ max: 10, used: 4, idle: 6, pending: 1 }) });
+    const replica = observeConnectionPool({ name: "ledger", read: () => ({ max: 5, used: 5, idle: 0, pending: 3 }) });
+
+    const collected = await collect();
+    const ledger = (name: string) =>
+      (collected.get(name) ?? []).filter((p) => p.attributes["db.client.connection.pool.name"] === "ledger");
+
+    expect(ledger("db.client.connection.max").map((p) => p.value)).toEqual([15]);
+    expect(ledger("db.client.connection.pending_requests").map((p) => p.value)).toEqual([4]);
+    expect(ledger("db.client.connection.count").find((p) => p.attributes["db.client.connection.state"] === "used")?.value).toBe(9);
+
+    primary.stop();
+    replica.stop();
+  });
+
+  it("keeps a shared series going until its last pool stops", async () => {
+    const readPrimary = jest.fn(() => ({ max: 10, used: 1, idle: 9, pending: 0 }));
+    const readReplica = jest.fn(() => ({ max: 5, used: 1, idle: 4, pending: 0 }));
+    const primary = observeConnectionPool({ name: "shared", read: readPrimary });
+    const replica = observeConnectionPool({ name: "shared", read: readReplica });
+    const sharedMax = async () =>
+      ((await collect()).get("db.client.connection.max") ?? [])
+        .filter((p) => p.attributes["db.client.connection.pool.name"] === "shared")
+        .map((p) => p.value);
+
+    primary.stop();
+
+    expect(await sharedMax()).toEqual([5]);
+
+    replica.stop();
+    primary.stop();
+    readPrimary.mockClear();
+    readReplica.mockClear();
+    await collect();
+
+    expect(readPrimary).not.toHaveBeenCalled();
+    expect(readReplica).not.toHaveBeenCalled();
+  });
+
+  it("leaves out a pool whose read throws, and keeps the rest of its group", async () => {
+    const healthy = observeConnectionPool({ name: "flaky", read: () => ({ max: 5, used: 2, idle: 3, pending: 0 }) });
+    const broken = observeConnectionPool({
+      name: "flaky",
+      read: () => {
+        throw new Error("pool closed");
+      },
+    });
+
+    const max = ((await collect()).get("db.client.connection.max") ?? []).filter(
+      (p) => p.attributes["db.client.connection.pool.name"] === "flaky"
+    );
+
+    expect(max.map((p) => p.value)).toEqual([5]);
+
+    healthy.stop();
+    broken.stop();
+  });
+
+  it("reports nothing, rather than zeros, when no pool in a group can be read", async () => {
+    const broken = observeConnectionPool({
+      name: "unreadable",
+      read: () => {
+        throw new Error("pool closed");
+      },
+    });
+
+    const reported = ((await collect()).get("db.client.connection.max") ?? []).some(
+      (p) => p.attributes["db.client.connection.pool.name"] === "unreadable"
+    );
+
+    expect(reported).toBe(false);
+
+    broken.stop();
+  });
+
+  it("warns when a pool joins a group under a different system", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const first = observeConnectionPool({ name: "mixed", system: "postgresql", read: () => ({ max: 1, used: 0, idle: 1, pending: 0 }) });
+    const second = observeConnectionPool({ name: "mixed", system: "mysql", read: () => ({ max: 1, used: 0, idle: 1, pending: 0 }) });
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("mixed"));
+
+    first.stop();
+    second.stop();
+    warn.mockRestore();
+  });
+
   it("stops reporting once the pool is no longer observed", async () => {
     const handle = observeConnectionPool({ name: "gone", read: () => ({ max: 9, used: 1, idle: 8, pending: 0 }) });
 
