@@ -196,3 +196,18 @@ for (const knex of [primary, replica]) {
 ```
 
 Register the pools after `Telemetry.start()`. knex creates its pool lazily, so `read` guards a missing one rather than throwing on every collection.
+
+**Traces through Kafka** — kafkajs is instrumented by default, and trace context rides in the message headers. What a consumer's trace looks like depends on how it reads:
+
+- **`eachMessage`** continues the producer's trace: each message's processing span is a child of the span that sent it. A trace that starts at an HTTP request carries on through the consumer.
+- **`eachBatch`** starts a new trace for the batch, and each message's processing span *links* to the span that sent it instead of continuing its trace. That follows OpenTelemetry's messaging conventions, since one batch can hold messages from many traces, but it has two consequences. A tool that draws dependencies from parent–child edges alone won't connect the producer to a batch consumer; it has to follow span links. And the batch's trace is sampled on its own, so a producer's trace can be kept while the consumer's side is dropped, and a documentation-trace mark does not carry across.
+
+Checked end to end against a Kafka broker with the bundled `@opentelemetry/instrumentation-kafkajs` 0.31.
+
+**Traces through Google Pub/Sub** — `@google-cloud/pubsub` traces itself rather than through an instrumentation package, and it is off until you ask:
+
+```ts
+const pubsub = new PubSub({ enableOpenTelemetryTracing: true });
+```
+
+Create the client after `Telemetry.start()`. It then uses the kit's tracer, and carries W3C trace context in a message attribute, `googclient_traceparent`, alongside the `tracestate` that holds a documentation-trace mark. A subscriber's span continues the publisher's trace. Batching spans on both sides (`send`, `ack`) start their own traces and link to the messages they carry. Checked against the source of `@google-cloud/pubsub` 6.1.
