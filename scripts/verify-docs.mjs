@@ -33,7 +33,8 @@ declare const findUser: (email: string) => Promise<{ id: string }>;
 declare const generateToken: (user: unknown) => Promise<string>;
 declare const billerId: string;
 declare class Pool { constructor(o: unknown); options: { max: number }; totalCount: number; idleCount: number; waitingCount: number }
-void [app, logger, url, fastify, handler, AppError, RedactingSpanProcessor, findUser, generateToken, billerId, Pool];
+declare class PubSub { constructor(o: { enableOpenTelemetryTracing?: boolean }) }
+void [app, logger, url, fastify, handler, AppError, RedactingSpanProcessor, findUser, generateToken, billerId, Pool, PubSub];
 `;
 
 const OTEL_IMPORTS = `
