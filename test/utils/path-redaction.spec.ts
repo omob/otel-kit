@@ -1,3 +1,4 @@
+import { QueryRedaction } from "../../src/enums/query-redaction.enum";
 import { isIdentifier, maskPath, maskQuery, maskUrl } from "../../src/utils/path-redaction";
 
 // route segments that must survive: every digit-bearing one from a 443-segment production corpus, and the long names
@@ -68,6 +69,15 @@ describe("path redaction", () => {
     ["q=a+b&email=ada%40example.com", "q=a+b&email=*"],
   ])("masks identifying values in the query %p", (query, masked) => {
     expect(maskQuery(query)).toBe(masked);
+  });
+
+  it("drops the query, and only the query, when path masking is off", () => {
+    const redaction = { maskSegments: false, query: QueryRedaction.DROP };
+
+    expect(maskUrl("https://api.example/customers/0123456789?insuredName=Ada#top", redaction)).toBe(
+      "https://api.example/customers/0123456789"
+    );
+    expect(maskPath("/customers/0123456789?insuredName=Ada", redaction)).toBe("/customers/0123456789");
   });
 
   it("leaves a value that is not a url untouched", () => {

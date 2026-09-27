@@ -1,14 +1,39 @@
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { QueryRedaction } from "../../src/enums/query-redaction.enum";
 import PathRedactionProcessor from "../../src/processors/path-redaction.processor";
 
 const exporter = new InMemorySpanExporter();
 const provider = new NodeTracerProvider({
-  spanProcessors: [new PathRedactionProcessor(), new SimpleSpanProcessor(exporter)],
+  spanProcessors: [new PathRedactionProcessor({ maskSegments: true, query: QueryRedaction.MASK }), new SimpleSpanProcessor(exporter)],
 });
 
 beforeEach(() => exporter.reset());
 afterAll(() => provider.shutdown());
+
+describe("PathRedactionProcessor dropping queries", () => {
+  it("removes the query from url.query, url.full and url.path", async () => {
+    const dropExporter = new InMemorySpanExporter();
+    const dropping = new NodeTracerProvider({
+      spanProcessors: [new PathRedactionProcessor({ maskSegments: true, query: QueryRedaction.DROP }), new SimpleSpanProcessor(dropExporter)],
+    });
+    const span = dropping.getTracer("test").startSpan("probe");
+
+    span.setAttributes({
+      "url.path": "/policies?insuredName=Ada",
+      "url.full": "https://api.example/policies/0123456789?insuredName=Ada#section",
+      "url.query": "insuredName=Ada",
+    });
+    span.end();
+
+    expect(dropExporter.getFinishedSpans()[0].attributes).toEqual({
+      "url.path": "/policies",
+      "url.full": "https://api.example/policies/*",
+    });
+
+    await dropping.shutdown();
+  });
+});
 
 describe("PathRedactionProcessor", () => {
   it("masks identifiers in url.path, url.full and url.query, and leaves http.route alone", () => {

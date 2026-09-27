@@ -13,6 +13,7 @@ jest.mock("@opentelemetry/sdk-node", () => ({
 }));
 
 import { ExporterType } from "../../src/enums/exporter-type.enum";
+import { QueryRedaction } from "../../src/enums/query-redaction.enum";
 import SdkFactory from "../../src/factories/sdk.factory";
 import { ITelemetryConfig } from "../../src/telemetry.types";
 
@@ -82,6 +83,10 @@ describe("SdkFactory", () => {
     expect(processors({})).toEqual(["AttributeSanitizerProcessor", "PathRedactionProcessor"]);
     expect(processors({ sanitizeAttributes: false })).toEqual(["PathRedactionProcessor"]);
     expect(processors({ redactPathSegments: false })).toEqual(["AttributeSanitizerProcessor"]);
+    expect(processors({ redactPathSegments: false, redactQuery: QueryRedaction.DROP })).toEqual([
+      "AttributeSanitizerProcessor",
+      "PathRedactionProcessor",
+    ]);
   });
 
   it("appends additional span processors alongside the exporter", () => {

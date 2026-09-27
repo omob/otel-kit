@@ -5,6 +5,7 @@ import type { Instrumentation } from "@opentelemetry/instrumentation";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor, SpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ExporterType } from "../enums/exporter-type.enum";
+import { QueryRedaction } from "../enums/query-redaction.enum";
 import { ILogConfig, IMetricConfig, ITelemetryConfig, ITraceConfig } from "../telemetry.types";
 import InstrumentationFactory from "./instrumentation.factory";
 import LogProcessorFactory from "./log-processor.factory";
@@ -31,6 +32,14 @@ class SdkFactory {
     return PropagatorFactory.createPropagator(config.propagators);
   }
 
+  // dropping query strings is its own decision, and still applies with path masking turned off
+  static createUrlRedaction(traces: ITraceConfig): SpanProcessor[] {
+    const maskSegments = traces.redactPathSegments !== false;
+    const query = traces.redactQuery ?? QueryRedaction.MASK;
+
+    return maskSegments || query === QueryRedaction.DROP ? [new PathRedactionProcessor({ maskSegments, query })] : [];
+  }
+
   static isDisabledByEnvironment(): boolean {
     return getBooleanFromEnv("OTEL_SDK_DISABLED");
   }
@@ -52,7 +61,7 @@ class SdkFactory {
     const spanProcessors: SpanProcessor[] = [
       ...(peers && Object.keys(peers).length ? [new PeerResolutionProcessor(peers)] : []),
       ...(traces.sanitizeAttributes === false ? [] : [new AttributeSanitizerProcessor()]),
-      ...(traces.redactPathSegments === false ? [] : [new PathRedactionProcessor()]),
+      ...SdkFactory.createUrlRedaction(traces),
       ...(traceExporter ? [new BatchSpanProcessor(traceExporter, traces.batch)] : []),
       ...(traces.additionalProcessors ?? []),
     ];

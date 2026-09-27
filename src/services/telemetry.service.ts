@@ -3,6 +3,7 @@ import {
   ContextManager,
   diag,
   DiagConsoleLogger,
+  DiagLogLevel,
   metrics,
   propagation,
   ProxyTracerProvider,
@@ -199,7 +200,8 @@ class TelemetryService {
 
   // otel writes its own failures through diag, which discards everything until a logger is installed
   private configureDiagnostics(config: ITelemetryConfig): void {
-    routeWarningsToDiagnostics(config.diagLogLevel !== undefined);
+    // a level below WARN would swallow configuration warnings, the ones worth hearing, so those stay on the console
+    routeWarningsToDiagnostics(config.diagLogLevel !== undefined && config.diagLogLevel >= DiagLogLevel.WARN);
 
     if (config.diagLogLevel === undefined) {
       return;

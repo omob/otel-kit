@@ -238,6 +238,21 @@ describe("Telemetry warnings", () => {
       jest.restoreAllMocks();
     });
   });
+
+  it("stay on the console when the diagnostics level would swallow them", async () => {
+    const { DiagLogLevel } = require("@opentelemetry/api");
+    const diagLogger = { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn(), verbose: jest.fn() };
+    const consoleWarn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      Telemetry.start({ ...silentConfig, architecture: { cpuLimit: -1 }, diagLogLevel: DiagLogLevel.ERROR, diagLogger });
+
+      expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining("CPU limit"));
+    } finally {
+      await Telemetry.shutdown();
+      jest.restoreAllMocks();
+    }
+  });
 });
 
 describe("Telemetry metrics without a collector", () => {

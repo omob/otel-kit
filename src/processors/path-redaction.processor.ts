@@ -1,8 +1,12 @@
 import type { ReadableSpan, SpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ATTR_URL_FULL, ATTR_URL_PATH, ATTR_URL_QUERY } from "@opentelemetry/semantic-conventions";
+import { QueryRedaction } from "../enums/query-redaction.enum";
 import { maskPath, maskQuery, maskUrl } from "../utils/path-redaction";
+import { IUrlRedaction } from "../utils/path-redaction.types";
 
 class PathRedactionProcessor implements SpanProcessor {
+  constructor(private readonly redaction: IUrlRedaction) {}
+
   onStart(): void {
     return undefined;
   }
@@ -13,14 +17,16 @@ class PathRedactionProcessor implements SpanProcessor {
     const query = span.attributes[ATTR_URL_QUERY];
 
     if (typeof path === "string") {
-      span.attributes[ATTR_URL_PATH] = maskPath(path);
+      span.attributes[ATTR_URL_PATH] = maskPath(path, this.redaction);
     }
 
     if (typeof full === "string") {
-      span.attributes[ATTR_URL_FULL] = maskUrl(full);
+      span.attributes[ATTR_URL_FULL] = maskUrl(full, this.redaction);
     }
 
-    if (typeof query === "string") {
+    if (typeof query === "string" && this.redaction.query === QueryRedaction.DROP) {
+      delete span.attributes[ATTR_URL_QUERY];
+    } else if (typeof query === "string" && this.redaction.maskSegments) {
       span.attributes[ATTR_URL_QUERY] = maskQuery(query);
     }
   }

@@ -26,6 +26,7 @@ Only `serviceName` is required. Everything else has a working default.
 | `traces.exporter` | `none` | `none` · `console` · `otlp` · `gcp` |
 | `traces.sampleRatio` | keep all | `0.1` keeps 10%. Children follow their parent's decision. If you leave it out, the kit reads the standard `OTEL_TRACES_SAMPLER` and `OTEL_TRACES_SAMPLER_ARG`: a ratio, or `always_on`/`always_off`. The kit's sampler always follows a sampled caller, so `always_off` stops traces this service starts, not ones it continues, and `architecture.docTraceRatio` still records its documentation traces. A value it can't use is ignored with a warning. |
 | `traces.redactPathSegments` | `true` | Masks account numbers, emails, UUIDs, tokens and document numbers in `url.path`, `url.query` and `url.full`, as `*`. `http.route` keeps the template. Separate from `sanitizeAttributes`, so turning one off leaves the other on. Short technical names with digits (`sha256`) are masked too; ids made only of letters, under 24 characters, are not. |
+| `traces.redactQuery` | `QueryRedaction.MASK` | What happens to query strings. `MASK` masks the values that look like identifiers, along with paths, and keeps the rest; `DROP` removes query strings (and fragments) from `url.query`, `url.full` and `url.path`, even with `redactPathSegments: false`, for values such as names that no rule can recognise. |
 | `traces.sampler` | — | A sampler of your own. Takes precedence over `sampleRatio`. |
 | `traces.otlp.url` | — | Collector endpoint. Also takes `headers` and `timeoutMillis`. |
 | `traces.otlp.protocol` | `http/protobuf` | `http/protobuf` · `http/json` · `grpc` |
@@ -84,7 +85,7 @@ Only `serviceName` is required. Everything else has a working default.
 
 ## Environment variables
 
-The kit reads the standard `OTEL_*` variables where they apply, plus `CPU_LIMIT_MILLICORES`. A value set in code always wins over the environment. A variable that is set but blank — as a ConfigMap key left empty arrives — counts as unset, and a value the kit can't use, such as a sample ratio of `1.5`, is ignored with a warning at startup rather than applied. Warnings about your configuration, from code or the environment, print to the console, so you see them without turning on `diagLogLevel`.
+The kit reads the standard `OTEL_*` variables where they apply, plus `CPU_LIMIT_MILLICORES`. A value set in code always wins over the environment. A variable that is set but blank — as a ConfigMap key left empty arrives — counts as unset, and a value the kit can't use, such as a sample ratio of `1.5`, is ignored with a warning at startup rather than applied. Warnings about your configuration, from code or the environment, go to your `diagLogger` when `diagLogLevel` is `WARN` or more detailed, and to the console otherwise — so setting `diagLogLevel: DiagLogLevel.ERROR` to quiet OpenTelemetry's chatter does not hide them.
 
 ## Shutting down
 

@@ -1,9 +1,13 @@
+import { QueryRedaction } from "../enums/query-redaction.enum";
+import { IUrlRedaction } from "./path-redaction.types";
+
 const MASK = "*";
 const NUMERIC_SEGMENT = /^\d{4,}$/;
 const UUID_SEGMENT = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const MIXED_SEGMENT_LENGTH = 6;
 const MIXED_SEGMENT_DIGITS = 2;
 const TOKEN_SEGMENT_LENGTH = 24;
+const MASK_EVERYTHING: IUrlRedaction = { maskSegments: true, query: QueryRedaction.MASK };
 
 export function isIdentifier(segment: string): boolean {
   if (segment.includes("@") || NUMERIC_SEGMENT.test(segment) || UUID_SEGMENT.test(segment)) {
@@ -21,15 +25,23 @@ export function isIdentifier(segment: string): boolean {
 }
 
 // @fastify/otel puts the raw request target in url.path, query string included
-export function maskPath(path: string): string {
+export function maskPath(path: string, redaction = MASK_EVERYTHING): string {
   const queryStart = path.indexOf("?");
   const pathPart = queryStart === -1 ? path : path.slice(0, queryStart);
-  const masked = pathPart
+  const masked = redaction.maskSegments ? maskSegments(pathPart) : pathPart;
+
+  if (queryStart === -1 || redaction.query === QueryRedaction.DROP) {
+    return masked;
+  }
+
+  return `${masked}${redaction.maskSegments ? maskQuery(path.slice(queryStart)) : path.slice(queryStart)}`;
+}
+
+function maskSegments(path: string): string {
+  return path
     .split("/")
     .map((segment) => (isIdentifier(decodeSegment(segment)) ? MASK : segment))
     .join("/");
-
-  return queryStart === -1 ? masked : `${masked}${maskQuery(path.slice(queryStart))}`;
 }
 
 // moving an id from the path to the query string must not be a way around the path rules
@@ -54,12 +66,18 @@ export function maskQuery(query: string): string {
   return `${prefix}${parameters.join("&")}`;
 }
 
-export function maskUrl(value: string): string {
+export function maskUrl(value: string, redaction = MASK_EVERYTHING): string {
   try {
     const url = new URL(value);
 
-    url.pathname = maskPath(url.pathname);
-    url.search = url.search ? maskQuery(url.search) : "";
+    url.pathname = maskPath(url.pathname, redaction);
+
+    if (redaction.query === QueryRedaction.DROP) {
+      url.search = "";
+      url.hash = "";
+    } else if (redaction.maskSegments && url.search) {
+      url.search = maskQuery(url.search);
+    }
 
     return url.toString();
   } catch {
