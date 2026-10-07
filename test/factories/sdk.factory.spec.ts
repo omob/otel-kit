@@ -13,7 +13,9 @@ jest.mock("@opentelemetry/sdk-node", () => ({
 }));
 
 import { ExporterType } from "../../src/enums/exporter-type.enum";
+import { InstrumentationName } from "../../src/enums/instrumentation-name.enum";
 import { QueryRedaction } from "../../src/enums/query-redaction.enum";
+import InstrumentationFactory from "../../src/factories/instrumentation.factory";
 import SdkFactory from "../../src/factories/sdk.factory";
 import { ITelemetryConfig } from "../../src/telemetry.types";
 
@@ -104,6 +106,22 @@ describe("SdkFactory", () => {
     const config = build({ traces: { exporter: ExporterType.NONE, additionalProcessors: [processor as never] } });
 
     expect((config.spanProcessors as unknown[])[2]).toBe(processor);
+  });
+
+  it("turns log sending on when logs resolve to a destination, and off when they don't", () => {
+    const pinoSending = (config: object) => {
+      const instrumentations = SdkFactory.applyLogSending(
+        InstrumentationFactory.createInstrumentations(),
+        { serviceName: "kreela-api", ...config }
+      );
+      const pino = instrumentations.find((i) => i.instrumentationName === InstrumentationName.PINO);
+
+      return !(pino?.getConfig() as { disableLogSending?: boolean }).disableLogSending;
+    };
+
+    expect(pinoSending({})).toBe(false);
+    expect(pinoSending({ logs: { exporter: ExporterType.CONSOLE } })).toBe(true);
+    expect(pinoSending({ logs: { exporter: ExporterType.OTLP } })).toBe(false);
   });
 
   it("passes metric views through", () => {

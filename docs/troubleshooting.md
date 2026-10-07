@@ -47,6 +47,8 @@ Pass `diagLogger` to send it to your own logger instead of the console. With tha
 - **`OTEL_METRICS_EXPORTER=none` is set somewhere** — a `.env` file, a base image or a shared chart. Since 0.7 it switches off a `metrics` block too; look for the startup warning.
 - **Your traces URL doesn't end in `/v1/traces`.** The kit can't tell where metrics belong, so it sends none. Add a `metrics` block with the URL.
 
+**No logs arrive.** Logs are off until `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` is set or a `logs` block resolves to a destination; a block that can't resolve one prints a warning at startup. Then check three things: the service logs through pino, winston or bunyan (`console.log` isn't captured); `disableLogSending` isn't set to `true` in that library's `instrumentation.config`; and the destination accepts logs — a collector with no logs pipeline rejects `/v1/logs`, silently unless `diagLogLevel` is set.
+
 **Metrics arrive, but two services share one `service.version`.** The version comes from the `package.json` your start script ran from. In a monorepo started from the root, that is the root's version for every service. Set `serviceVersion` in each service's config.
 
 **Pool metrics look wrong or go negative on a service with more than one `pg` pool.** Those numbers come from the pg instrumentation, which only tracks one pool correctly. Register each pool with `observeConnectionPool()` and read the `@omob/otel-kit` scope; see [Connection pools](https://github.com/omob/otel-kit/blob/main/README.md#connection-pools).

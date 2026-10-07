@@ -233,7 +233,7 @@ Where exactly they go:
 | --- | --- |
 | `traces.otlp.url` ends in `/v1/traces` | the same URL, ending in `/v1/metrics` instead |
 | the traces URL comes from `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | the same, from that variable |
-| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` is set | that endpoint, with only the headers you gave it in `OTEL_EXPORTER_OTLP_METRICS_HEADERS` or `OTEL_EXPORTER_OTLP_HEADERS` — never your traces headers, since it may be another vendor |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` is set | that endpoint, without the headers set on your traces in code, since it may be another vendor. `OTEL_EXPORTER_OTLP_HEADERS` applies to every signal by the OpenTelemetry standard, so put a vendor-specific credential in `OTEL_EXPORTER_OTLP_TRACES_HEADERS` or `OTEL_EXPORTER_OTLP_METRICS_HEADERS` instead |
 | gRPC | the same endpoint as traces |
 | no URL in code or in either variable above | wherever your traces go: `OTEL_EXPORTER_OTLP_ENDPOINT` if set, otherwise the local default (`localhost:4318`, or `4317` for gRPC) |
 | a traces URL with any other path | nowhere — the kit can't guess, so metrics stay off |
@@ -274,15 +274,20 @@ metrics: { exporter: ExporterType.PROMETHEUS, prometheus: { port: 9464 } }
 
 ### Logs
 
-Logs are off until you add a `logs` block:
+Logs are off by default, and turning them on sends your log lines out of the process exactly as your logger wrote them. The kit's masking and attribute sanitizing cover spans only; a log line carries whatever your logger puts in it, so check what yours emits — response bodies, auth headers and personal details are the usual leaks — before pointing it at a backend. Your log volume also goes to two places, so you pay to store it twice unless you drop stdout collection.
 
-```ts
-logs: { exporter: ExporterType.OTLP, otlp: { url: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT } }
-```
+Turn them on either way:
 
-You do not change how you log. If you use pino, winston or bunyan, the log instrumentation bridges what you already write into OpenTelemetry, carrying the `trace_id` that ties each line to its span — so a trace links straight to the logs from that request.
+- **Without code:** set `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`. Logs go there without the headers set on your traces in code, since logs often go to a different vendor. `OTEL_EXPORTER_OTLP_HEADERS` applies to every signal by the OpenTelemetry standard, so keep a traces vendor's credential in `OTEL_EXPORTER_OTLP_TRACES_HEADERS` and give logs theirs in `OTEL_EXPORTER_OTLP_LOGS_HEADERS`.
+- **In code:** add `logs: { exporter: ExporterType.OTLP }`. With no URL, logs follow your traces to the same collector, with the same headers — `/v1/traces` becomes `/v1/logs` — exactly as metrics do, unless `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` names another destination. Give the block its own `otlp.url` to send them elsewhere. If there is nothing to follow and no endpoint variable, the kit sends no logs and says why at startup, rather than retrying a local collector that isn't there.
 
-Two things to weigh before turning logs on. Your log volume goes to two places, so you pay to store it twice unless you drop stdout collection. And any gap in your redaction now reaches a second system: check what your logger emits — response bodies and auth headers are the usual leaks — before pointing it at a backend.
+`OTEL_LOGS_EXPORTER=none` turns logs off whatever the code says. The kit sends OTLP over `http/protobuf` unless `otlp.protocol` says otherwise; it does not read the `OTEL_EXPORTER_OTLP_*_PROTOCOL` variables.
+
+You do not change how you log. If you use pino, winston or bunyan, the log instrumentation bridges what you already write into OpenTelemetry, carrying the `trace_id` that ties each line to its span — so a trace links straight to the logs from that request. The bridge sends records only when logs have somewhere to go, so turning logs on is the endpoint alone; set `disableLogSending` in that library's `instrumentation.config` entry to decide yourself. `console.log` is not captured: logs need one of those three libraries.
+
+**Check the destination takes logs.** Traces and metrics going to the same collector teaches you to expect logs to follow, but a collector with no logs pipeline answers `/v1/logs` with an error, and a failed export is silent unless `diagLogLevel` is set.
+
+
 
 ## Connection pools
 

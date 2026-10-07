@@ -1,7 +1,7 @@
 import http from "node:http";
 import { ExporterType, InstrumentationName, OtlpProtocol, Telemetry } from "../../dist/index.js";
 
-const received = { metrics: [], resource: {}, urlPaths: [] };
+const received = { metrics: [], resource: {}, urlPaths: [], logRequests: 0 };
 const collector = http.createServer((req, res) => {
   let body = "";
   req.on("data", (chunk) => (body += chunk));
@@ -17,6 +17,10 @@ const collector = http.createServer((req, res) => {
       }
     }
 
+    if (req.url === "/v1/logs") {
+      received.logRequests += 1;
+    }
+
     if (req.url === "/v1/metrics") {
       for (const resourceMetrics of JSON.parse(body).resourceMetrics ?? []) {
         for (const { key, value } of resourceMetrics.resource.attributes) received.resource[key] = Object.values(value)[0];
@@ -27,6 +31,10 @@ const collector = http.createServer((req, res) => {
   });
 });
 await new Promise((resolve) => collector.listen(0, "127.0.0.1", resolve));
+
+if (process.env.OTEL_KIT_TEST_LOGS_ENDPOINT === "true") {
+  process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT = `http://127.0.0.1:${collector.address().port}/v1/logs`;
+}
 
 Telemetry.start({
   serviceName: "health-fixture",
@@ -39,6 +47,9 @@ Telemetry.start({
   runtimeMetrics: process.env.OTEL_KIT_TEST_RUNTIME_METRICS !== "false",
   handleShutdownSignals: false,
 });
+
+const { logs } = await import("@opentelemetry/api-logs");
+logs.getLogger("health-fixture").emit({ severityText: "ERROR", body: "payment failed" });
 
 const { default: appHttp } = await import("node:http");
 const app = appHttp.createServer((req, res) => res.end("ok"));
@@ -63,5 +74,10 @@ await Telemetry.shutdown();
 collector.close();
 
 process.stdout.write(
-  JSON.stringify({ metrics: [...new Set(received.metrics)], resource: received.resource, urlPaths: received.urlPaths })
+  JSON.stringify({
+    metrics: [...new Set(received.metrics)],
+    resource: received.resource,
+    urlPaths: received.urlPaths,
+    logRequests: received.logRequests,
+  })
 );

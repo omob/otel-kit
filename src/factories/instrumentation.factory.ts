@@ -4,8 +4,11 @@ import type { IncomingMessage } from "http";
 import { InstrumentationName } from "../enums/instrumentation-name.enum";
 import { IFastifyInstrumentationConfig, IFastifyOtelModule, IInstrumentationConfig } from "../telemetry.types";
 import { registerEsmHook } from "../utils/esm-hook";
+import { ILogInstrumentationConfig } from "./instrumentation.types";
 import { loadOptionalDependency } from "../utils/optional-dependency";
 import { warn } from "../utils/warn";
+
+const LOG_INSTRUMENTATIONS = [InstrumentationName.PINO, InstrumentationName.WINSTON, InstrumentationName.BUNYAN];
 
 class InstrumentationFactory {
   static createInstrumentations(config: IInstrumentationConfig = {}, runtimeMetrics = true): Instrumentation[] {
@@ -49,6 +52,28 @@ class InstrumentationFactory {
       ...InstrumentationFactory.createFastify(fastify as IFastifyInstrumentationConfig | undefined),
       ...(config.additional ?? []),
     ];
+  }
+
+  // a logger bridged to a pipeline that exports nowhere costs a record per line for nothing; an explicit setting wins.
+  // Applied on every start, since the instrumentations outlive a restart and loggers read it when they are created
+  static applyLogSending(
+    instrumentations: Instrumentation[],
+    config: IInstrumentationConfig = {},
+    logsExported: boolean
+  ): Instrumentation[] {
+    for (const instrumentation of instrumentations) {
+      const name = instrumentation.instrumentationName as InstrumentationName;
+      const explicit = (config.config?.[name as keyof typeof config.config] as ILogInstrumentationConfig | undefined)
+        ?.disableLogSending;
+
+      if (LOG_INSTRUMENTATIONS.includes(name) && explicit === undefined) {
+        const logConfig: ILogInstrumentationConfig = { ...instrumentation.getConfig(), disableLogSending: !logsExported };
+
+        instrumentation.setConfig(logConfig);
+      }
+    }
+
+    return instrumentations;
   }
 
   private static createFastify(options: IFastifyInstrumentationConfig | undefined): Instrumentation[] {
