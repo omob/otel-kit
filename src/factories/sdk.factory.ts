@@ -8,6 +8,7 @@ import { ExporterType } from "../enums/exporter-type.enum";
 import { QueryRedaction } from "../enums/query-redaction.enum";
 import { ILogConfig, IMetricConfig, ITelemetryConfig, ITraceConfig } from "../telemetry.types";
 import InstrumentationFactory from "./instrumentation.factory";
+import LogConfigFactory from "./log-config.factory";
 import LogProcessorFactory from "./log-processor.factory";
 import MetricReaderFactory from "./metric-reader.factory";
 import AttributeSanitizerProcessor from "../processors/attribute-sanitizer.processor";
@@ -26,6 +27,12 @@ const DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT = 4_096;
 class SdkFactory {
   static createInstrumentations(config: ITelemetryConfig): Instrumentation[] {
     return InstrumentationFactory.createInstrumentations(config.instrumentation, config.runtimeMetrics !== false);
+  }
+
+  static applyLogSending(instrumentations: Instrumentation[], config: ITelemetryConfig): Instrumentation[] {
+    const logsExported = LogConfigFactory.createLogConfig(config).exporter !== ExporterType.NONE;
+
+    return InstrumentationFactory.applyLogSending(instrumentations, config.instrumentation, logsExported);
   }
 
   static createPropagator(config: ITelemetryConfig): TextMapPropagator {
@@ -71,7 +78,7 @@ class SdkFactory {
       traces.sampler ?? SamplerFactory.createSampler(traces.sampleRatio),
       config.architecture?.docTraceRatio
     );
-    const logRecordProcessors = LogProcessorFactory.createProcessors(config.logs ?? DISABLED_SIGNAL);
+    const logRecordProcessors = LogProcessorFactory.createProcessors(LogConfigFactory.createLogConfig(config));
 
     // empty arrays keep NodeSDK from falling back to its OTEL_* environment defaults, which export to localhost:4318;
     // null context manager and propagator leave their registration to the caller, which tracks what it owns

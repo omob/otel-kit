@@ -143,6 +143,25 @@ describe("InstrumentationFactory only / esmHook", () => {
     ]);
   });
 
+  it("sends log records from pino, winston and bunyan only when logs are exported, on every start, unless told otherwise", () => {
+    const logNames: string[] = [InstrumentationName.PINO, InstrumentationName.WINSTON, InstrumentationName.BUNYAN];
+    const logSending = (instrumentations: ReturnType<typeof InstrumentationFactory.createInstrumentations>) =>
+      instrumentations
+        .filter((i) => logNames.includes(i.instrumentationName))
+        .map((i) => (i.getConfig() as { disableLogSending?: boolean }).disableLogSending);
+    const instrumentations = InstrumentationFactory.createInstrumentations();
+
+    expect(logSending(InstrumentationFactory.applyLogSending(instrumentations, {}, false))).toEqual([true, true, true]);
+    expect(logSending(InstrumentationFactory.applyLogSending(instrumentations, {}, true))).toEqual([false, false, false]);
+
+    const explicit = { config: { [InstrumentationName.PINO]: { disableLogSending: true } } };
+    const pino = InstrumentationFactory.applyLogSending(InstrumentationFactory.createInstrumentations(explicit), explicit, true).find(
+      (i) => i.instrumentationName === InstrumentationName.PINO
+    );
+
+    expect((pino?.getConfig() as { disableLogSending?: boolean }).disableLogSending).toBe(true);
+  });
+
   it("keeps runtime metrics under only unless they are turned off", () => {
     const only = { only: [InstrumentationName.HTTP] };
 

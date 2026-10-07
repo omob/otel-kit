@@ -19,6 +19,7 @@ import { TelemetryErrorCode } from "../enums/telemetry-error-code.enum";
 import { TelemetryGlobal } from "../enums/telemetry-global.enum";
 import TelemetryConfigError from "../errors/telemetry-config.error";
 import EnvironmentConfigFactory from "../factories/environment-config.factory";
+import LogConfigFactory from "../factories/log-config.factory";
 import MetricConfigFactory from "../factories/metric-config.factory";
 import type SdkFactory from "../factories/sdk.factory";
 import { IMetricObserverHandle, ITelemetryConfig } from "../telemetry.types";
@@ -109,7 +110,9 @@ class TelemetryService {
     const sdkFactory = this.loadSdkFactory();
     const propagator = sdkFactory.createPropagator(config);
     // a fresh set cannot patch modules the app already loaded, so a restart keeps the first set and sdk.start() rebinds it
-    const sdk = sdkFactory.createSdk(config, () => (this.instrumentations ??= sdkFactory.createInstrumentations(config)));
+    const sdk = sdkFactory.createSdk(config, () =>
+      sdkFactory.applyLogSending((this.instrumentations ??= sdkFactory.createInstrumentations(config)), config)
+    );
     const contextManager = sdkFactory.createContextManager();
 
     // released here rather than at shutdown, so requests a host is still draining keep context and propagation
@@ -143,6 +146,16 @@ class TelemetryService {
         MetricConfigFactory.turnedOffByEnvironment()
           ? "@omob/otel-kit exports no metrics: OTEL_METRICS_EXPORTER=none overrides the metrics block in code"
           : "@omob/otel-kit exports no metrics: the metrics block has no URL, and none follows from traces or OTEL_EXPORTER_OTLP_ENDPOINT"
+      );
+    }
+
+    const logs = LogConfigFactory.createLogConfig(config);
+
+    if (config.logs && config.logs.exporter !== ExporterType.NONE && logs.exporter === ExporterType.NONE) {
+      warn(
+        LogConfigFactory.turnedOffByEnvironment()
+          ? "@omob/otel-kit exports no logs: OTEL_LOGS_EXPORTER=none overrides the logs block in code"
+          : "@omob/otel-kit exports no logs: the logs block has no URL, and none follows from traces, OTEL_EXPORTER_OTLP_LOGS_ENDPOINT or OTEL_EXPORTER_OTLP_ENDPOINT"
       );
     }
 

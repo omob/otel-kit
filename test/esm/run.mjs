@@ -27,6 +27,7 @@ const off = run({ OTEL_KIT_TEST_ESM_HOOK: "false" });
 const restart = run({}, [join(dir, "restart.mjs")]);
 const health = run({ npm_package_version: "7.7.7" }, [join(dir, "health.mjs")]);
 const noRuntime = run({ OTEL_KIT_TEST_RUNTIME_METRICS: "false" }, [join(dir, "health.mjs")]);
+const logsOn = run({ OTEL_KIT_TEST_LOGS_ENDPOINT: "true" }, [join(dir, "health.mjs")]);
 
 const personalMachine =
   ["darwin", "win32"].includes(process.platform) ||
@@ -51,6 +52,8 @@ const checks = [
   ["otlp traces alone export nodejs.eventloop.delay.p99 under only: [HTTP]", health.metrics.includes("nodejs.eventloop.delay.p99")],
   ["runtimeMetrics: false exports no runtime metrics", !noRuntime.metrics.some((name) => name.startsWith("nodejs.eventloop"))],
   ["otlp traces alone export the V8 heap limit", health.metrics.includes("ritele.v8js.memory.heap.limit")],
+  ["no logs block and no logs endpoint export no logs", health.logRequests === 0],
+  ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT alone exports logs", logsOn.logRequests > 0],
   [
     "an account number in the path leaves the process masked",
     health.urlPaths.includes("/customers/*") && !health.urlPaths.some((path) => path.includes("22123456789")),

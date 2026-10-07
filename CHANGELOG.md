@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.11.0
+
+**Upgrading?** Check two things:
+
+1. **`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` already set somewhere** — a base image, a shared ConfigMap — with no `logs` block in code? It used to be ignored; it now turns logs on, and your log lines start leaving the process. Remove it, or set `OTEL_LOGS_EXPORTER=none`, if that isn't what you want.
+2. **`disableLogSending` set only to stop pino, winston or bunyan sending records while logs were off?** You can drop it: the kit now does that itself, and sends records once logs have a destination.
+
+Added
+
+- **`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` turns logs on without code.** With no `logs` block, setting the variable is enough. Headers set on your traces in code don't go with it, since logs often go to another vendor; `OTEL_EXPORTER_OTLP_HEADERS` still applies to every signal, as the OpenTelemetry standard defines it. Without the variable, logs stay off as before.
+- **A `logs` block without a URL follows the traces collector,** with its headers and `/v1/traces` swapped for `/v1/logs`, the same way metrics do. `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` wins over that, without the traces headers; with neither, it uses `OTEL_EXPORTER_OTLP_ENDPOINT`, and otherwise the kit sends no logs and warns, instead of retrying a local collector. A `logs: { exporter: ExporterType.NONE }` in code keeps logs off whatever the variables say.
+- **`OTEL_LOGS_EXPORTER=none` turns logs off,** winning over a `logs` block like its metrics counterpart.
+
+Changed
+
+- **pino, winston and bunyan send log records only when logs are exported.** They used to send records into a pipeline that, with logs off, exported nowhere; with logs on, a forgotten `disableLogSending: true` left a working exporter with nothing to send. Log sending now follows whether logs have a destination, decided again on every start, and a `disableLogSending` you set in `instrumentation.config` still wins. Trace ids in your log lines are unaffected.
+
 ## 0.10.0
 
 **Upgrading?** Check three things:

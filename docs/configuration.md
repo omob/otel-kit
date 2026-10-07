@@ -46,6 +46,7 @@ Only `serviceName` is required. Everything else has a working default.
 | `metrics.prometheus` | `127.0.0.1:9464` | `host`, `port`, `endpoint`. Binds loopback by default — the endpoint is unauthenticated, so only widen it behind a private network. |
 | `metrics.views` | `[]` | Histogram buckets and cardinality limits. |
 | `metrics.cpuUsage` | `false` | Reports `process.cpu.time` in seconds, one series per `cpu.mode` (`user`, `system`). Leave it off if `@opentelemetry/host-metrics` or the host-metrics instrumentation already reports it, or a model that sums the two series sees double the CPU. |
+| `logs` | off | Set `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` to turn logs on without code. An OTLP block without a URL follows the traces collector and its headers, as metrics do; `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` wins over that, and with neither it uses `OTEL_EXPORTER_OTLP_ENDPOINT`, otherwise sending nothing and warning. `logs: { exporter: ExporterType.NONE }` in code keeps logs off whatever the variables say. `OTEL_LOGS_EXPORTER=none` turns logs off whatever is set here. pino, winston and bunyan send records only when logs have a destination, unless their `disableLogSending` is set in `instrumentation.config`. |
 | `logs.exporter` | `none` | `none` · `console` · `otlp` |
 
 **Instrumentation and propagation**

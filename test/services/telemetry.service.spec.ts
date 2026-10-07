@@ -269,6 +269,27 @@ describe("Telemetry metrics without a collector", () => {
   });
 });
 
+describe("Telemetry logs without a collector", () => {
+  it("exports no logs, and says why, for a logs block with no URL and nothing to follow", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const shellEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+
+    delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+
+    try {
+      Telemetry.start({ ...silentConfig, logs: { exporter: ExporterType.OTLP } });
+
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("the logs block has no URL"));
+    } finally {
+      if (shellEndpoint !== undefined) {
+        process.env.OTEL_EXPORTER_OTLP_ENDPOINT = shellEndpoint;
+      }
+
+      jest.restoreAllMocks();
+    }
+  });
+});
+
 describe("Telemetry heap limit", () => {
   const heapLimitService = require("../../src/services/heap-limit.service");
   const exporting: ITelemetryConfig = {
