@@ -1,18 +1,27 @@
 import { getNodeAutoInstrumentations, InstrumentationConfigMap } from "@opentelemetry/auto-instrumentations-node";
 import type { Instrumentation } from "@opentelemetry/instrumentation";
 import type { IncomingMessage } from "http";
+import { EnvironmentVariable } from "../enums/environment-variable.enum";
 import { InstrumentationName } from "../enums/instrumentation-name.enum";
 import { IFastifyInstrumentationConfig, IFastifyOtelModule, IInstrumentationConfig } from "../telemetry.types";
 import { registerEsmHook } from "../utils/esm-hook";
 import { ILogInstrumentationConfig } from "./instrumentation.types";
+import { readEnvironment } from "../utils/environment";
 import { loadOptionalDependency } from "../utils/optional-dependency";
 import { warn } from "../utils/warn";
 
 const LOG_INSTRUMENTATIONS = [InstrumentationName.PINO, InstrumentationName.WINSTON, InstrumentationName.BUNYAN];
+const AUTO_REGISTER_MODULE = "@opentelemetry/auto-instrumentations-node/register";
 
 class InstrumentationFactory {
   static createInstrumentations(config: IInstrumentationConfig = {}, runtimeMetrics = true): Instrumentation[] {
     const options: Record<string, unknown> = { ...config.config };
+
+    if (InstrumentationFactory.loadsAutoRegister()) {
+      warn(
+        `@omob/otel-kit found ${AUTO_REGISTER_MODULE} in NODE_OPTIONS or the node flags; it registers a second set of instrumentations and its own SDK, so spans and metrics are recorded twice. Remove it: otel-kit registers them already`
+      );
+    }
 
     // registering after the app has imported a module is too late to patch it
     if (config.esmHook !== false && !registerEsmHook()) {
@@ -38,6 +47,13 @@ class InstrumentationFactory {
       options[name] = { ...(options[name] as object), enabled: true };
     }
 
+    // an instrumentation patches as it is constructed and unpatches on disable, so the adopter's copy replaces the kit's
+    const replaced = (config.additional ?? []).map((instrumentation) => instrumentation.instrumentationName);
+
+    for (const name of Object.values(InstrumentationName).filter((known) => replaced.includes(known))) {
+      options[name] = { ...(options[name] as object), enabled: false };
+    }
+
     if (config.ignoreIncomingPaths?.length) {
       options[InstrumentationName.HTTP] = {
         ...(options[InstrumentationName.HTTP] as object),
@@ -52,6 +68,12 @@ class InstrumentationFactory {
       ...InstrumentationFactory.createFastify(fastify as IFastifyInstrumentationConfig | undefined),
       ...(config.additional ?? []),
     ];
+  }
+
+  static loadsAutoRegister(): boolean {
+    const flags = [readEnvironment(EnvironmentVariable.NODE_OPTIONS) ?? "", ...process.execArgv].join(" ");
+
+    return flags.includes(AUTO_REGISTER_MODULE);
   }
 
   // a logger bridged to a pipeline that exports nowhere costs a record per line for nothing; an explicit setting wins.

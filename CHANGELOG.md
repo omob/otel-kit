@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.12.0
+
+**Upgrading?** If metrics such as GC time, request counts or CPU time have looked doubled or impossible — GC above 100%, a series whose start time keeps changing — this release is likely the fix: see the first item below.
+
+Fixed
+
+- **A `--require` preload no longer starts a second SDK.** Node runs `--require` preloads again in the thread that serves `module.register()` hooks, which otel-kit registers for ESM by default. Every service started as `node --require ./instrumentation.js server.js` therefore ran two SDKs in one process, exporting the same resource and scopes: runtime metrics from the second thread's own isolate, and `process.cpu.time` twice. A backend saw two cumulative streams with different start times under one series. Reproduced on Node 18 through 24, in every release since 0.2.0. `Telemetry.start()` now does nothing outside the main thread, including your own `worker_threads`, which inherit the preload too and caused the same doubling. Before upgrading, `instrumentation.esmHook: false` avoids it for CommonJS apps.
+
+Added
+
+- **A warning when the auto-instrumentations' `register` module is loaded** through `NODE_OPTIONS`, `--require` or `--import`. It registers a second set of instrumentations and its own SDK, so everything is recorded twice.
+- **An instrumentation in `instrumentation.additional` replaces the kit's own copy.** Passing, say, your own `HttpInstrumentation` used to patch `http` a second time and record every request twice. Now the kit leaves its copy out and runs yours, hooks and all; its `instrumentation.config` and `ignoreIncomingPaths` settings for that instrumentation no longer apply, so put them on your instance.
+
+Documented
+
+- Don't register `@opentelemetry/auto-instrumentations-node` yourself; the kit does. The `esmHook` example no longer suggests its `register` module, which double-registers; use `@opentelemetry/instrumentation/hook.mjs` for a loader hook alone.
+- A troubleshooting entry for metrics that read double or above 100%.
+
 ## 0.11.0
 
 **Upgrading?** Check two things:

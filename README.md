@@ -90,7 +90,7 @@ If your app is ESM (`"type": "module"`), use `--import` instead, and keep it on 
 
 ESM links every module in the graph before any of them runs, so an `import "./instrumentation.js"` inside `server.js` starts telemetry after Fastify, ioredis or kafkajs have already loaded — too late to patch them. `--import` runs first. Node 18.19 or later is needed for ESM instrumentation; on older runtimes only CommonJS requires are patched.
 
-That's it. HTTP, database and framework calls are traced automatically.
+That's it. HTTP, database and framework calls are traced automatically. Don't also register `@opentelemetry/auto-instrumentations-node` yourself — otel-kit already does, and a second set records every span and metric twice. To change how one instrumentation behaves, use `instrumentation.config`.
 
 Every trace is kept until you say otherwise. Keep it that way while you are setting things up: sampling is a production concern, and turning it down before you have seen a single trace is the most common reason nothing appears in a backend. When you're ready, set `OTEL_TRACES_SAMPLER_ARG=0.1` to keep 10% — the kit reads the standard variable itself and ignores a value that isn't between 0 and 1, with a warning, rather than drop every trace. A `traces.sampleRatio` in code wins over it.
 
