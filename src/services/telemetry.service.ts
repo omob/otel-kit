@@ -11,6 +11,7 @@ import {
   trace,
 } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
+import { isMainThread } from "node:worker_threads";
 import type { Instrumentation } from "@opentelemetry/instrumentation";
 import type { NodeSDK } from "@opentelemetry/sdk-node";
 import { ExporterType } from "../enums/exporter-type.enum";
@@ -48,7 +49,8 @@ class TelemetryService {
   private signalHandlers = new Map<NodeJS.Signals, () => void>();
 
   start(config: ITelemetryConfig): void {
-    if (this.sdk || config.enabled === false) {
+    // a worker's sdk would export its own isolate's runtime metrics and the process's cpu under the main thread's series
+    if (this.sdk || config.enabled === false || !isMainThread) {
       return;
     }
 

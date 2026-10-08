@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -25,6 +27,13 @@ function run(env, args = ["--import", join(dir, "otel.mjs"), join(dir, "app.mjs"
 const on = run({});
 const off = run({ OTEL_KIT_TEST_ESM_HOOK: "false" });
 const restart = run({}, [join(dir, "restart.mjs")]);
+const startsFile = join(mkdtempSync(join(tmpdir(), "otel-kit-preload-")), "starts");
+writeFileSync(startsFile, "");
+spawnSync(process.execPath, ["--require", join(dir, "preload.cjs"), join(dir, "preload-app.cjs")], {
+  env: { ...process.env, OTEL_KIT_TEST_STARTS: startsFile },
+});
+const preloadStarts = readFileSync(startsFile, "utf8").split("\n").filter(Boolean);
+const additional = run({}, [join(dir, "additional.cjs")]);
 const health = run({ npm_package_version: "7.7.7" }, [join(dir, "health.mjs")]);
 const noRuntime = run({ OTEL_KIT_TEST_RUNTIME_METRICS: "false" }, [join(dir, "health.mjs")]);
 const logsOn = run({ OTEL_KIT_TEST_LOGS_ENDPOINT: "true" }, [join(dir, "health.mjs")]);
@@ -45,6 +54,8 @@ const checks = [
   ["fastify sets http.route with hook", on.fastifyRoute === "/transfers/:id"],
   ["fastify sets http.route without hook", off.fastifyRoute === "/transfers/:id"],
   ["url.path keeps no query string", on.queryFreePaths === true],
+  ["a --require preload starts one sdk, on the main thread only", preloadStarts.join(",") === "main"],
+  ["an http instrumentation in additional keeps http patched", additional.httpPatched === true],
   ["http spans recorded before a restart", restart.beforeRestart === 2],
   ["http spans recorded after a restart", restart.afterRestart === 2],
   ["client and server spans linked after a restart", restart.linkedAfterRestart === true],

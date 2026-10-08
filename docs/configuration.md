@@ -56,10 +56,10 @@ Only `serviceName` is required. Everything else has a working default.
 | `instrumentation.disable` | `[]` | Instrumentations to switch off, e.g. `[InstrumentationName.DNS]`. |
 | `instrumentation.enable` | `[]` | Switch on one that's off by default. Beats `disable`. |
 | `instrumentation.only` | unset | Allow-list. When set, everything not in `only` or `enable` is off, except the runtime metrics (see `runtimeMetrics`). Use it when you want a small, predictable set — `[InstrumentationName.HTTP, InstrumentationName.PG]` — instead of subtracting from the full auto set. |
-| `instrumentation.esmHook` | `true` | Registers the `import-in-the-middle` loader hook so ESM imports are instrumented (Node ≥ 18.19). Set `false` if the host already registers one, e.g. `--import @opentelemetry/auto-instrumentations-node/register`. |
+| `instrumentation.esmHook` | `true` | Registers the `import-in-the-middle` loader hook so ESM imports are instrumented (Node ≥ 18.19). Set `false` if the host already registers a loader hook itself, e.g. `--experimental-loader=@opentelemetry/instrumentation/hook.mjs`. A CommonJS app that never imports an ESM-only package can set `false` too. Don't use `@opentelemetry/auto-instrumentations-node/register` for this: it registers a whole second set of instrumentations and its own SDK. |
 | `instrumentation.ignoreIncomingPaths` | `[]` | No spans for these paths. Put your health check here. |
 | `instrumentation.config` | `{}` | Options for individual instrumentations, passed to OpenTelemetry unchanged. |
-| `instrumentation.additional` | `[]` | Instrumentations outside the auto set — community ones, or your own. |
+| `instrumentation.additional` | `[]` | Instrumentations outside the auto set — community ones, or your own. One with the same name as a kit instrumentation, such as your own `HttpInstrumentation`, replaces the kit's; `instrumentation.config` and `ignoreIncomingPaths` then don't apply to it. |
 | `propagators` | `tracecontext`, `baggage` | Trace context formats to read and write. |
 
 **Architecture** — for tools that draw a system diagram from telemetry. Everything here is optional and inert for backends that don't look for it.

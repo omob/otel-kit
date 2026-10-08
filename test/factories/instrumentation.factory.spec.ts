@@ -162,6 +162,39 @@ describe("InstrumentationFactory only / esmHook", () => {
     expect((pino?.getConfig() as { disableLogSending?: boolean }).disableLogSending).toBe(true);
   });
 
+  it("lets an instrumentation.additional entry replace the kit's own copy of it", () => {
+    const { HttpInstrumentation } = require("@opentelemetry/instrumentation-http");
+    const adopters = new HttpInstrumentation();
+    const extra = { instrumentationName: "custom-instrumentation" };
+
+    const list = InstrumentationFactory.createInstrumentations({ additional: [adopters, extra as never] });
+
+    expect(list.filter((i) => i.instrumentationName === InstrumentationName.HTTP)).toEqual([adopters]);
+    expect(adopters.isEnabled()).toBe(true);
+    expect(list).toContain(extra);
+  });
+
+  it("warns when NODE_OPTIONS loads the auto-instrumentations register module", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const original = process.env.NODE_OPTIONS;
+
+    process.env.NODE_OPTIONS = "--require @opentelemetry/auto-instrumentations-node/register";
+
+    try {
+      InstrumentationFactory.createInstrumentations();
+
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("auto-instrumentations-node/register"));
+    } finally {
+      if (original === undefined) {
+        delete process.env.NODE_OPTIONS;
+      } else {
+        process.env.NODE_OPTIONS = original;
+      }
+
+      warn.mockRestore();
+    }
+  });
+
   it("keeps runtime metrics under only unless they are turned off", () => {
     const only = { only: [InstrumentationName.HTTP] };
 

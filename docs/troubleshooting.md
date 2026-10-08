@@ -40,6 +40,11 @@ Pass `diagLogger` to send it to your own logger instead of the console. With tha
 
 **Traces stop at your service** — a caller's trace doesn't continue into yours: they're probably using a propagation format you haven't listed in `propagators`.
 
+**Metrics read double, or as more than 100%** — GC time above the wall clock, request counts twice what the load balancer saw, a cumulative series whose start time keeps changing. One process is sending two copies of the same metrics. Two causes:
+
+- **The auto-instrumentations are registered twice.** otel-kit already registers them, the runtime metrics included. Calling `registerInstrumentations(getNodeAutoInstrumentations())` in your own code, or loading `@opentelemetry/auto-instrumentations-node/register` through `--require`, `--import` or `NODE_OPTIONS`, adds a second set that records everything again. Remove it. Since 0.12 the kit warns at startup about the `register` module, and an instrumentation in `instrumentation.additional` replaces the kit's copy instead of adding a second one.
+- **otel-kit before 0.12, preloaded with `--require` and the ESM hook on** (the default). Node runs `--require` preloads a second time in the thread that serves the ESM hook, which started a second SDK there. The same happened in any `worker_threads` worker, which inherits the preload. Upgrade to 0.12: the kit now starts only on the main thread. Or set `instrumentation.esmHook: false` if the app is CommonJS and imports no ESM-only package.
+
 **No metrics arrive.** Since 0.6 the kit sends metrics to your traces collector by default, and a failed send is silent unless `diagLogLevel` is set. Set `diagLogLevel: DiagLogLevel.WARN` to see why. The usual causes:
 
 - **The backend only stores traces**, as Jaeger does. Set `OTEL_METRICS_EXPORTER=none` to stop the attempts, or point a `metrics` block at a backend that takes them.

@@ -74,6 +74,20 @@ const freshTelemetryWithCleanGlobals = () => {
 afterEach(() => Telemetry.shutdown());
 
 describe("Telemetry.start", () => {
+  it("starts nothing outside the main thread, such as the thread serving module hooks", () => {
+    jest.isolateModules(() => {
+      jest.doMock("node:worker_threads", () => ({ isMainThread: false }));
+
+      const IsolatedTelemetry = require("../../src/services/telemetry.service").default;
+
+      IsolatedTelemetry.start(silentConfig);
+
+      expect(IsolatedTelemetry.isStarted).toBe(false);
+    });
+
+    jest.dontMock("node:worker_threads");
+  });
+
   it("does nothing when telemetry is disabled", () => {
     Telemetry.start({ ...silentConfig, enabled: false });
 
